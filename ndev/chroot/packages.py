@@ -5,7 +5,7 @@ from ndev.chroot.manager import SandboxManager
 from ndev.logger import logger
 from ndev.utils import run_command
 
-def install_host_packages(packages: list[str]):
+def install_host_packages(packages: list[str], show_logs: bool = False):
     """Downloads, extracts, and moves package files to usr/local inside chroot."""
     if not packages:
         return
@@ -24,12 +24,12 @@ def install_host_packages(packages: list[str]):
     
     try:
         cmd = ["apt-get", "download"] + packages
-        run_command(cmd, cwd=tmp_dir)
+        run_command(cmd, cwd=tmp_dir, show_logs=show_logs)
         
         for deb in tmp_dir.glob("*.deb"):
             extract_dest = tmp_dir / deb.stem
             extract_dest.mkdir(parents=True, exist_ok=True)
-            run_command(["dpkg", "-x", str(deb), str(extract_dest)])
+            run_command(["dpkg", "-x", str(deb), str(extract_dest)], show_logs=show_logs)
             
             usr_src = extract_dest / "usr"
             if usr_src.exists():

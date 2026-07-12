@@ -28,7 +28,7 @@ def extract_archive(archive_path: Path, extract_dir: Path) -> Path:
         
     return extract_dir / root_dir_name
 
-def build_php(version: str, archive_path: Path) -> Path:
+def build_php(version: str, archive_path: Path, show_logs: bool = False) -> Path:
     """Extract, configure, compile and install PHP inside bubblewrap."""
     build_dir = BUILDS_DIR / f"php-{version}"
     if build_dir.exists():
@@ -65,17 +65,28 @@ def build_php(version: str, archive_path: Path) -> Path:
         f"--with-config-file-scan-dir={install_prefix}/etc/conf.d",
     ] + flags
     
-    logger.info("Configuring PHP within sandbox...")
+    if not show_logs:
+        logger.info(f"[yellow]Compiling PHP {version}...[/yellow]")
+    else:
+        logger.info("Configuring PHP within sandbox...")
     sandbox = SandboxManager()
-    sandbox.run(configure_args, cwd=build_dir)
+    sandbox.run(configure_args, cwd=build_dir, show_logs=show_logs)
     
     cores = os.cpu_count() or 2
-    logger.info(f"Compiling PHP using {cores} parallel jobs...")
-    sandbox.run(["make", f"-j{cores}"], cwd=build_dir)
+    if show_logs:
+        logger.info(f"Compiling PHP using {cores} parallel jobs...")
+    sandbox.run(["make", f"-j{cores}"], cwd=build_dir, show_logs=show_logs)
     
-    logger.info("Installing PHP...")
-    sandbox.run(["make", "install"], cwd=build_dir)
+    if not show_logs:
+        logger.info(f"[green]Compiled PHP {version}[/green]")
+        logger.info(f"[yellow]Installing PHP {version}...[/yellow]")
+    else:
+        logger.info("Installing PHP...")
+    sandbox.run(["make", "install"], cwd=build_dir, show_logs=show_logs)
     
+    if not show_logs:
+        logger.info(f"[green]Installed PHP {version}[/green]")
+        
     add_installed_version(version, str(install_prefix), configure_args)
     
     logger.info(f"PHP {version} compiled and installed successfully at {install_prefix}!")

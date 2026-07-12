@@ -93,12 +93,18 @@ def ext_list(version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)"
 @ext_app.command("install")
 def ext_install(
     ext_name: str = typer.Argument(..., help="Extension name (e.g. redis)"),
-    version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)")
+    version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)"),
+    show_logs: bool = typer.Option(
+        False,
+        "--show-logs",
+        "-s",
+        help="Show verbose compilation and installation logs"
+    )
 ):
     """Install and enable a PECL extension."""
     from ndev.php.extensions import install_extension
     try:
-        install_extension(version, ext_name)
+        install_extension(version, ext_name, show_logs=show_logs)
     except Exception as e:
         logger.error(f"Error installing extension: {e}")
         raise typer.Exit(code=1)

@@ -6,7 +6,7 @@ from ndev.logger import logger
 
 console = Console()
 
-def run_command(cmd, cwd=None, env=None, check=True, capture_output=False):
+def run_command(cmd, cwd=None, env=None, check=True, capture_output=False, show_logs=True):
     """Run a shell command, printing output in real-time or capturing it."""
     if isinstance(cmd, str):
         cmd_args = shlex.split(cmd)
@@ -37,11 +37,16 @@ def run_command(cmd, cwd=None, env=None, check=True, capture_output=False):
     output_lines = []
     if p.stdout:
         for line in p.stdout:
-            sys.stdout.write(line)
-            sys.stdout.flush()
+            if show_logs:
+                sys.stdout.write(line)
+                sys.stdout.flush()
             output_lines.append(line)
             
     p.wait()
     if check and p.returncode != 0:
-        raise subprocess.CalledProcessError(p.returncode, cmd_args, "".join(output_lines))
+        output_str = "".join(output_lines)
+        if not show_logs:
+            logger.error(f"Command failed with exit code {p.returncode}")
+            logger.error("Command output:\n" + output_str)
+        raise subprocess.CalledProcessError(p.returncode, cmd_args, output_str)
     return p.returncode

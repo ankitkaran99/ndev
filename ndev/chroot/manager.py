@@ -48,7 +48,7 @@ class SandboxManager:
         
         return bwrap_cmd
 
-    def run(self, cmd_args, cwd=None, env=None, check=True):
+    def run(self, cmd_args, cwd=None, env=None, check=True, show_logs=True):
         """Run command inside the bubblewrap sandbox."""
         if env is None:
             env = os.environ.copy()
@@ -60,4 +60,4 @@ class SandboxManager:
         env["PATH"] = "/usr/local/bin:" + env.get("PATH", "")
         
         bwrap_cmd = self.get_bwrap_command(cmd_args, cwd=cwd)
-        return run_command(bwrap_cmd, env=env, check=check)
+        return run_command(bwrap_cmd, env=env, check=check, show_logs=show_logs)

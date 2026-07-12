@@ -60,7 +60,7 @@ def disable_extension(version: str, ext_name: str):
     else:
         logger.warning(f"Extension '{ext_name}' was not enabled (ini file {ini_file} does not exist).")
 
-def install_extension(version: str, ext_name: str):
+def install_extension(version: str, ext_name: str, show_logs: bool = False):
     """Download, compile, and install a PECL extension inside the sandbox."""
     php_bin, phpize_bin, php_config_bin = get_php_binaries(version)
     if not php_bin.exists():
@@ -113,18 +113,30 @@ def install_extension(version: str, ext_name: str):
         shutil.move(str(extracted_path), str(build_dir))
 
     # 3. Configure and compile inside sandbox
-    logger.info(f"Compiling extension '{ext_name}' inside the sandbox...")
+    if not show_logs:
+        logger.info(f"[yellow]Compiling extension '{ext_name}'...[/yellow]")
+    else:
+        logger.info(f"Compiling extension '{ext_name}' inside the sandbox...")
     sandbox = SandboxManager()
     
     # Run phpize
-    sandbox.run([str(phpize_bin)], cwd=build_dir)
+    sandbox.run([str(phpize_bin)], cwd=build_dir, show_logs=show_logs)
     
     # Run configure
-    sandbox.run(["./configure", f"--with-php-config={php_config_bin}"], cwd=build_dir)
+    sandbox.run(["./configure", f"--with-php-config={php_config_bin}"], cwd=build_dir, show_logs=show_logs)
     
-    # Run make and make install
-    sandbox.run(["make", "-j4"], cwd=build_dir)
-    sandbox.run(["make", "install"], cwd=build_dir)
+    # Run make
+    sandbox.run(["make", "-j4"], cwd=build_dir, show_logs=show_logs)
+    
+    if not show_logs:
+        logger.info(f"[green]Compiled extension '{ext_name}'[/green]")
+        logger.info(f"[yellow]Installing extension '{ext_name}'...[/yellow]")
+    else:
+        logger.info("Installing extension...")
+    sandbox.run(["make", "install"], cwd=build_dir, show_logs=show_logs)
+    
+    if not show_logs:
+        logger.info(f"[green]Installed extension '{ext_name}'[/green]")
     
     # 4. Enable extension (strip version suffix if present: e.g. xdebug-3.1.6 -> xdebug)
     base_ext_name = ext_name.split("-")[0]
