@@ -1,0 +1,23 @@
+from pathlib import Path
+from ndev.php.resolver import resolve_version
+from ndev.php.downloader import download_php_source
+from ndev.php.builder import build_php
+from ndev.php.templates import write_default_configs
+from ndev.chroot.packages import install_host_packages
+from ndev.logger import logger
+
+def install_version(version_input: str) -> str:
+    """Resolve, download, build and configure a PHP version."""
+    resolved_version, filename, sha256, download_url = resolve_version(version_input)
+    
+    archive_path = download_php_source(filename, sha256, download_url)
+    
+    # Pre-install development dependencies inside sandbox
+    install_host_packages(["libsqlite3-dev", "libonig-dev"])
+    
+    install_prefix = build_php(resolved_version, archive_path)
+    
+    write_default_configs(install_prefix, resolved_version)
+    
+    logger.info(f"Successfully finished installation of PHP version {resolved_version}")
+    return resolved_version
