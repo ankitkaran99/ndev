@@ -32,7 +32,7 @@ def get_php_sockets() -> list[tuple[str, Path]]:
                 ver = f"{name[0]}.{name[1]}"
             else:
                 ver = name
-            sockets.append((f"ndev {ver}", sock))
+            sockets.append((ver, sock))
             
     return sockets
 
@@ -67,8 +67,11 @@ def vhost_cmd(
     selected_sock = None
     if php:
         # Check if match alias
+        clean_php = php.lower()
+        if clean_php.startswith("ndev "):
+            clean_php = clean_php[len("ndev "):]
         for label, sock in sockets:
-            if php.lower() in label.lower():
+            if clean_php in label.lower():
                 selected_sock = sock
                 break
         if not selected_sock:

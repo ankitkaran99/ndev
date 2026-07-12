@@ -10,7 +10,7 @@ It allows you to run multiple isolated PHP-FPM services simultaneously without i
 
 - **Sandboxed Compilation**: Automatically builds any PHP version from source inside an isolated `bubblewrap` environment with custom, self-healing multiarch compile paths.
 - **Root-free Sandbox Packages**: Downloads, relocates, and resolves required system development packages (`libsqlite3-dev`, `libonig-dev`, etc.) fully within user-space.
-- **Unified Services Control (`ctl`)**: An interactive dashboard to inspect and manage Nginx, MariaDB, PostgreSQL, System PHP-FPM, and custom `ndev` compiled FPM instances.
+- **Unified Services Control (`ctl`)**: An interactive dashboard to inspect and manage Nginx, MariaDB, PostgreSQL, and custom `ndev` compiled FPM instances.
 - **SQL Database Manager (`db`)**: An interactive wizard and CLI suite to create/drop databases and users for MySQL and PostgreSQL.
 - **Ngrok HTTP Tunneling (`grok`)**: Lists active virtual hosts, configures request routing headers, and proxies local traffic over the public web with `ngrok`.
 - **Nginx Virtual Host Manager (`vhost`)**: Prompts for domains, roots, and PHP-FPM sockets, configures Nginx, updates `/etc/hosts`, and reloads configurations (requires sudo).
@@ -140,7 +140,7 @@ ndev db drop-user john
 #### 3. Nginx Virtual Host Manager (`vhost`)
 Easily set up Nginx configurations matching a domain to a project root and PHP socket:
 ```bash
-sudo ndev vhost --domain project.local --root /home/user/project --php "ndev 8.4"
+sudo ndev vhost --domain project.local --root /home/user/project --php 8.4
 ```
 
 #### 4. Ngrok HTTP Tunneling (`grok`)
