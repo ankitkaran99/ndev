@@ -37,9 +37,33 @@ For any installed version (e.g. `8.4.23`), you can modify its behavior by editin
 
 ## Installation
 
+### 1. Install System Dependencies (APT)
+
+Before installing the Python package, ensure the host system has the necessary packages installed (for Debian/Ubuntu-based systems):
+
+```bash
+# Required packages for sandbox construction, compilation, and package discovery
+sudo apt update
+sudo apt install -y bubblewrap build-essential pkg-config
+```
+
+#### Optional Feature-specific Packages:
+Depending on which features of `ndev` you plan to use, you will need to install their corresponding host packages:
+- **Nginx Virtual Host Manager (`vhost`)**: Requires `nginx` on the host.
+  ```bash
+  sudo apt install -y nginx
+  ```
+- **SQL Database Manager (`db`)**: Requires standard client utilities.
+  ```bash
+  sudo apt install -y mysql-client postgresql-client
+  ```
+- **Ngrok HTTP Tunneling (`grok`)**: Requires the `ngrok` binary to be installed on your system. Follow the official instructions on [ngrok.com](https://ngrok.com/download) to install it.
+
+### 2. Set Up ndev
+
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/ndev.git
+git clone https://github.com/ankitkaran99/ndev.git
 cd ndev
 
 # Set up virtual environment and install dependencies

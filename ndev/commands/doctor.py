@@ -37,6 +37,12 @@ def doctor_cmd():
     else:
         table.add_row("Make Utility", "[red]MISSING[/red]", "make is required to build PHP.")
         
+    pkgconfig_path = shutil.which("pkg-config")
+    if pkgconfig_path:
+        table.add_row("Pkg-Config Utility", "[green]OK[/green]", f"Found at {pkgconfig_path}")
+    else:
+        table.add_row("Pkg-Config Utility", "[red]MISSING[/red]", "pkg-config is required to find libraries during compilation.")
+        
     if NDEV_DIR.exists():
         table.add_row("Layout Directory (~/.ndev)", "[green]OK[/green]", f"Exists at {NDEV_DIR}")
     else:
