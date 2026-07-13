@@ -117,6 +117,34 @@ def build_php(version: str, archive_path: Path, show_logs: bool = False) -> Path
     ] + flags
     
     env = os.environ.copy()
+    # Avoid pkg-config dependency checks for libraries inside the sandbox
+    env["CURL_CFLAGS"] = "-I/usr/local/include"
+    env["CURL_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -lcurl"
+    
+    env["WEBP_CFLAGS"] = "-I/usr/local/include"
+    env["WEBP_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -lwebp"
+    
+    env["JPEG_CFLAGS"] = "-I/usr/local/include"
+    env["JPEG_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -ljpeg"
+    
+    env["PNG_CFLAGS"] = "-I/usr/local/include"
+    env["PNG_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -lpng"
+    
+    env["FREETYPE2_CFLAGS"] = "-I/usr/local/include/freetype2 -I/usr/local/include"
+    env["FREETYPE2_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -lfreetype"
+    
+    env["LIBSODIUM_CFLAGS"] = "-I/usr/local/include"
+    env["LIBSODIUM_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -lsodium"
+    
+    env["LIBZIP_CFLAGS"] = "-I/usr/local/include"
+    env["LIBZIP_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -lzip"
+    
+    env["ONIG_CFLAGS"] = "-I/usr/local/include"
+    env["ONIG_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -lonig"
+
+    env["ICU_CFLAGS"] = "-I/usr/local/include"
+    env["ICU_LIBS"] = "-L/usr/local/lib -L/usr/local/lib/x86_64-linux-gnu -licui18n -licuuc -licudata -licuio"
+
     compat_flags = load_compat_args(version)
     if compat_flags:
         logger.info(f"Applying compatibility flags from args file for PHP {version}...")

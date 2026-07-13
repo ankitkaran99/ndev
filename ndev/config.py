@@ -18,13 +18,49 @@ def init_layout():
     else:
         try:
             content = CONFIG_FILE.read_text()
-            if "configure_flags" in content and "--with-mysqli" not in content:
+            new_flags = [
+                "--enable-fpm",
+                "--enable-mbstring",
+                "--enable-xml",
+                "--with-openssl",
+                "--with-zlib",
+                "--enable-pdo",
+                "--with-pdo-mysql",
+                "--with-mysqli",
+                "--with-curl",
+                "--enable-bcmath",
+                "--enable-calendar",
+                "--enable-exif",
+                "--enable-ftp",
+                "--enable-intl",
+                "--enable-pcntl",
+                "--enable-sockets",
+                "--enable-opcache",
+                "--enable-soap",
+                "--enable-gd",
+                "--with-jpeg",
+                "--with-webp",
+                "--with-freetype",
+                "--with-zip",
+                "--with-sodium",
+                "--with-bz2",
+                "--with-gmp",
+                "--with-readline"
+            ]
+            missing_flags = [f for f in new_flags if f not in content]
+            if "configure_flags" in content and missing_flags:
                 with open(CONFIG_FILE, "rb") as f:
                     config = tomllib.load(f)
                 build_sec = config.setdefault("build", {})
                 flags = build_sec.setdefault("configure_flags", [])
-                if "--with-mysqli" not in flags:
-                    flags.append("--with-mysqli")
+                
+                updated = False
+                for flag in new_flags:
+                    if flag not in flags:
+                        flags.append(flag)
+                        updated = True
+                
+                if updated:
                     lines = []
                     for section, s_content in config.items():
                         lines.append(f"[{section}]")
@@ -38,7 +74,7 @@ def init_layout():
                             lines.append(f"{k} = {v_str}")
                         lines.append("")
                     CONFIG_FILE.write_text("\n".join(lines))
-                    logger.info("Automatically added '--with-mysqli' to existing configuration flags.")
+                    logger.info("Automatically added missing build flags to existing configuration flags.")
         except Exception as e:
             logger.warning(f"Failed to migrate configuration file: {e}")
 

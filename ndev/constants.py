@@ -27,6 +27,25 @@ configure_flags = [
     "--with-zlib",
     "--enable-pdo",
     "--with-pdo-mysql",
-    "--with-mysqli"
+    "--with-mysqli",
+    "--with-curl",
+    "--enable-bcmath",
+    "--enable-calendar",
+    "--enable-exif",
+    "--enable-ftp",
+    "--enable-intl",
+    "--enable-pcntl",
+    "--enable-sockets",
+    "--enable-opcache",
+    "--enable-soap",
+    "--enable-gd",
+    "--with-jpeg",
+    "--with-webp",
+    "--with-freetype",
+    "--with-zip",
+    "--with-sodium",
+    "--with-bz2",
+    "--with-gmp",
+    "--with-readline"
 ]
 """
