@@ -81,7 +81,7 @@ def ctl_cmd():
     console.print("[bold blue]==================================================================[/bold blue]\n")
     
     # 1. Detect base services status
-    base_services = ["nginx", "mariadb", "postgresql"]
+    base_services = ["nginx", "mariadb"]
     php_versions = get_php_versions()
     
     table = Table(title="Detected Services")
@@ -119,12 +119,11 @@ def ctl_cmd():
     console.print("  1) Nginx")
     console.print("  2) MariaDB")
     console.print("  3) PHP-FPM")
-    console.print("  4) PostgreSQL")
-    console.print("  5) All Services")
-    svc_choice = typer.prompt("Enter choice [1-5]", default=5)
+    console.print("  4) All Services")
+    svc_choice = typer.prompt("Enter choice [1-4]", default=4)
     
     php_ver = None
-    if svc_choice in [3, 5]:
+    if svc_choice in [3, 4]:
         if not php_versions:
             logger.error("No PHP-FPM versions detected.")
             raise typer.Exit(code=1)
@@ -150,8 +149,6 @@ def ctl_cmd():
     elif svc_choice == 3:
         services_to_manage = [f"ndev-{php_ver}"]
     elif svc_choice == 4:
-        services_to_manage = ["postgresql"]
-    elif svc_choice == 5:
         services_to_manage = ["nginx", "mariadb"]
         if php_ver:
             services_to_manage.append(f"ndev-{php_ver}")
