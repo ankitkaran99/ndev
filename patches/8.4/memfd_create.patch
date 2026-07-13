@@ -1,0 +1,20 @@
+--- a/ext/opcache/zend_shared_alloc.c
++++ b/ext/opcache/zend_shared_alloc.c
+@@ -19,7 +19,7 @@
+    +----------------------------------------------------------------------+
+ */
+ 
+-#if defined(__linux__) && defined(HAVE_MEMFD_CREATE)
++#if defined(__linux__)
+ # ifndef _GNU_SOURCE
+ #  define _GNU_SOURCE
+ # endif
+@@ -88,7 +88,7 @@
+ 	zts_lock = tsrm_mutex_alloc();
+ #endif
+ 
+-#if defined(__linux__) && defined(HAVE_MEMFD_CREATE)
++#if defined(__linux__)
+ 	/* on Linux, we can use a memfd instead of a "real" file, so
+ 	 * we can do this without a writable filesystem and without
+ 	 * needing to clean up */

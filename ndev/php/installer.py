@@ -13,7 +13,7 @@ def install_version(version_input: str, show_logs: bool = False) -> str:
     archive_path = download_php_source(filename, sha256, download_url)
     
     # Pre-install development dependencies inside sandbox
-    install_host_packages(["libsqlite3-dev", "libonig-dev"], show_logs=show_logs)
+    install_host_packages(["libsqlite3-dev", "libonig-dev", "libcrypt-dev"], show_logs=show_logs)
     
     install_prefix = build_php(resolved_version, archive_path, show_logs=show_logs)
     

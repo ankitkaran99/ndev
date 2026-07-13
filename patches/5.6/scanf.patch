@@ -1,0 +1,46 @@
+--- a/ext/standard/scanf.c
++++ b/ext/standard/scanf.c
+@@ -590,7 +590,7 @@
+ 	int  base = 0;
+ 	int  underflow = 0;
+ 	size_t width;
+-	long (*fn)() = NULL;
++	long (*fn)(const char *, char **, int) = NULL;
+ 	char *ch, sch;
+ 	int  flags;
+ 	char buf[64];	/* Temporary buffer to hold scanned number
+@@ -762,29 +762,29 @@
+ 			case 'D':
+ 				op = 'i';
+ 				base = 10;
+-				fn = (long (*)())strtol;
++				fn = (long (*)(const char *, char **, int))strtol;
+ 				break;
+ 			case 'i':
+ 				op = 'i';
+ 				base = 0;
+-				fn = (long (*)())strtol;
++				fn = (long (*)(const char *, char **, int))strtol;
+ 				break;
+ 			case 'o':
+ 				op = 'i';
+ 				base = 8;
+-				fn = (long (*)())strtol;
++				fn = (long (*)(const char *, char **, int))strtol;
+ 				break;
+ 			case 'x':
+ 			case 'X':
+ 				op = 'i';
+ 				base = 16;
+-				fn = (long (*)())strtol;
++				fn = (long (*)(const char *, char **, int))strtol;
+ 				break;
+ 			case 'u':
+ 				op = 'i';
+ 				base = 10;
+ 				flags |= SCAN_UNSIGNED;
+-				fn = (long (*)())strtoul;
++				fn = (long (*)(const char *, char **, int))strtoul;
+ 				break;
+ 
+ 			case 'f':

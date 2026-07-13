@@ -1,0 +1,13 @@
+--- a/ext/libxml/libxml.c
++++ b/ext/libxml/libxml.c
+@@ -43,6 +43,10 @@
+ #endif
+ 
+ #include "php_libxml.h"
++
++#ifndef ATTRIBUTE_UNUSED
++# define ATTRIBUTE_UNUSED __attribute__((unused))
++#endif
+ 
+ #define PHP_LIBXML_LOADED_VERSION ((char *)xmlParserVersion)
+ #define PHP_LIBXML_ERROR 0

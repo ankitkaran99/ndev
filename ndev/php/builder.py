@@ -28,6 +28,65 @@ def extract_archive(archive_path: Path, extract_dir: Path) -> Path:
         
     return extract_dir / root_dir_name
 
+def apply_patches(version: str, build_dir: Path):
+    """Apply patches for a specific PHP version from the patches directory."""
+    major_minor = ".".join(version.split(".")[:2])
+    
+    project_root = Path(__file__).resolve().parents[2]
+    patches_dirs = [
+        project_root / "patches" / version,
+        project_root / "patches" / major_minor,
+    ]
+    
+    import subprocess
+    
+    applied_any = False
+    for patch_dir in patches_dirs:
+        if patch_dir.exists() and patch_dir.is_dir():
+            patch_files = sorted(patch_dir.glob("*.patch")) + sorted(patch_dir.glob("*.diff"))
+            seen = set()
+            for patch_file in patch_files:
+                if patch_file.name in seen:
+                    continue
+                seen.add(patch_file.name)
+                
+                logger.info(f"Applying patch {patch_file.name} for PHP {version}...")
+                try:
+                    subprocess.run(
+                        ["patch", "-p1", "-N", "-t", "-i", str(patch_file)],
+                        cwd=build_dir,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    applied_any = True
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to apply patch {patch_file.name}: {e.stderr}")
+                    raise e
+                    
+    if not applied_any:
+        logger.debug(f"No patches found for PHP {version}.")
+
+def load_compat_args(version: str) -> str:
+    """Load compatibility compiler flags from the args directory for the given version."""
+    major_minor = ".".join(version.split(".")[:2])
+    
+    project_root = Path(__file__).resolve().parents[2]
+    args_files = [
+        project_root / "args" / f"{version}.txt",
+        project_root / "args" / f"{major_minor}.txt",
+    ]
+    
+    for args_file in args_files:
+        if args_file.exists() and args_file.is_file():
+            try:
+                content = args_file.read_text().strip()
+                return " " + " ".join(content.split())
+            except Exception as e:
+                logger.warning(f"Failed to read args file {args_file}: {e}")
+                
+    return ""
+
 def build_php(version: str, archive_path: Path, show_logs: bool = False) -> Path:
     """Extract, configure, compile and install PHP inside bubblewrap."""
     build_dir = BUILDS_DIR / f"php-{version}"
@@ -39,16 +98,8 @@ def build_php(version: str, archive_path: Path, show_logs: bool = False) -> Path
         logger.info(f"Renaming build directory from {extracted_path.name} to {build_dir.name}")
         shutil.move(str(extracted_path), str(build_dir))
         
-    # Patch upstream bug in ext/opcache/zend_shared_alloc.c
-    alloc_c_path = build_dir / "ext" / "opcache" / "zend_shared_alloc.c"
-    if alloc_c_path.exists():
-        logger.info("Applying OPcache memfd_create patch to source code...")
-        content = alloc_c_path.read_text()
-        content = content.replace(
-            "#if defined(__linux__) && defined(HAVE_MEMFD_CREATE)",
-            "#if defined(__linux__)"
-        )
-        alloc_c_path.write_text(content)
+    # Apply version-specific patches
+    apply_patches(version, build_dir)
         
     config = load_config()
     flags = config.get("build", {}).get("configure_flags", [])
@@ -65,24 +116,35 @@ def build_php(version: str, archive_path: Path, show_logs: bool = False) -> Path
         f"--with-config-file-scan-dir={install_prefix}/etc/conf.d",
     ] + flags
     
+    env = os.environ.copy()
+    compat_flags = load_compat_args(version)
+    if compat_flags:
+        logger.info(f"Applying compatibility flags from args file for PHP {version}...")
+        env["CFLAGS"] = env.get("CFLAGS", "") + compat_flags
+        env["CXXFLAGS"] = env.get("CXXFLAGS", "") + compat_flags
+
     if not show_logs:
         logger.info(f"[yellow]Compiling PHP {version}...[/yellow]")
     else:
         logger.info("Configuring PHP within sandbox...")
     sandbox = SandboxManager()
-    sandbox.run(configure_args, cwd=build_dir, show_logs=show_logs)
+    sandbox.run(configure_args, cwd=build_dir, env=env, show_logs=show_logs)
     
     cores = os.cpu_count() or 2
     if show_logs:
         logger.info(f"Compiling PHP using {cores} parallel jobs...")
-    sandbox.run(["make", f"-j{cores}"], cwd=build_dir, show_logs=show_logs)
+    try:
+        sandbox.run(["make", f"-j{cores}"], cwd=build_dir, env=env, show_logs=show_logs)
+    except Exception:
+        logger.warning("Parallel compilation failed (likely due to a libtool race condition). Retrying sequentially...")
+        sandbox.run(["make"], cwd=build_dir, env=env, show_logs=show_logs)
     
     if not show_logs:
         logger.info(f"[green]Compiled PHP {version}[/green]")
         logger.info(f"[yellow]Installing PHP {version}...[/yellow]")
     else:
         logger.info("Installing PHP...")
-    sandbox.run(["make", "install"], cwd=build_dir, show_logs=show_logs)
+    sandbox.run(["make", "install"], cwd=build_dir, env=env, show_logs=show_logs)
     
     if not show_logs:
         logger.info(f"[green]Installed PHP {version}[/green]")

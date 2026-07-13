@@ -1,0 +1,25 @@
+--- a/ext/libxml/libxml.c
++++ b/ext/libxml/libxml.c
+@@ -44,6 +44,10 @@
+ #endif
+ 
+ #include "php_libxml.h"
++
++#ifndef ATTRIBUTE_UNUSED
++# define ATTRIBUTE_UNUSED __attribute__((unused))
++#endif
+ #include "image_svg.h"
+ 
+ #define PHP_LIBXML_LOADED_VERSION ((char *)xmlParserVersion)
+@@ -917,7 +921,11 @@
+ #if LIBXML_VERSION >= 21200
+ static void php_libxml_structured_error_handler(void *userData, const xmlError *error)
+ #else
++#if LIBXML_VERSION >= 21200
++static void php_libxml_structured_error_handler(void *userData, const xmlError *error)
++#else
+ static void php_libxml_structured_error_handler(void *userData, xmlErrorPtr error)
++#endif
+ #endif
+ {
+ 	php_list_set_error_structure(error, NULL, 0, 0);

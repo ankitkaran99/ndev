@@ -1,0 +1,14 @@
+--- a/ext/soap/php_sdl.c
++++ b/ext/soap/php_sdl.c
+@@ -331,7 +331,11 @@
+ 	sdl_restore_uri_credentials(ctx);
+ 
+ 	if (!wsdl) {
++		#if LIBXML_VERSION >= 21200
++		const xmlError *xmlErrorPtr = xmlGetLastError();
++#else
+ 		xmlErrorPtr xmlErrorPtr = xmlGetLastError();
++#endif
+ 
+ 		if (xmlErrorPtr) {
+ 			soap_error2(E_ERROR, "Parsing WSDL: Couldn't load from '%s' : %s", struri, xmlErrorPtr->message);

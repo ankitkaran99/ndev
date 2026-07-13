@@ -1,0 +1,49 @@
+--- a/ext/libxml/libxml.c
++++ b/ext/libxml/libxml.c
+@@ -43,6 +43,10 @@
+ #endif
+ 
+ #include "php_libxml.h"
++
++#ifndef ATTRIBUTE_UNUSED
++# define ATTRIBUTE_UNUSED __attribute__((unused))
++#endif
+ 
+ #define PHP_LIBXML_ERROR 0
+ #define PHP_LIBXML_CTX_ERROR 1
+@@ -530,7 +534,11 @@
+ 	return 1;
+ }
+ 
++#if LIBXML_VERSION >= 21200
++static void _php_list_set_error_structure(const xmlError *error, const char *msg)
++#else
+ static void _php_list_set_error_structure(xmlErrorPtr error, const char *msg)
++#endif
+ {
+ 	xmlError error_copy;
+ 	int ret;
+@@ -782,7 +790,11 @@
+ 	va_end(args);
+ }
+ 
++#if LIBXML_VERSION >= 21200
++PHP_LIBXML_API void php_libxml_structured_error_handler(void *userData, const xmlError *error)
++#else
+ PHP_LIBXML_API void php_libxml_structured_error_handler(void *userData, xmlErrorPtr error)
++#endif
+ {
+ 	_php_list_set_error_structure(error, NULL);
+ 
+@@ -1061,7 +1073,11 @@
+    Retrieve last error from libxml */
+ static PHP_FUNCTION(libxml_get_last_error)
+ {
++	#if LIBXML_VERSION >= 21200
++	const xmlError *error;
++#else
+ 	xmlErrorPtr error;
++#endif
+ 
+ 	error = xmlGetLastError();
+ 
