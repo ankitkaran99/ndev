@@ -68,6 +68,13 @@ app.command("vhost")(vhost_cmd)
 from ndev.commands.ctl import ctl_cmd
 app.command("ctl")(ctl_cmd)
 
+from ndev.commands.pma import pma_cmd
+app.command("pma", help="Setup phpMyAdmin if not installed, and launch it using the active PHP version.")(pma_cmd)
+app.command("phpmyadmin", help="Setup phpMyAdmin if not installed, and launch it using the active PHP version.", hidden=True)(pma_cmd)
+
+from ndev.commands.setup import setup_cmd
+app.command("setup")(setup_cmd)
+
 from ndev.commands.db import db_app
 app.add_typer(db_app, name="db")
 

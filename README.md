@@ -4,6 +4,17 @@
 
 It allows you to run multiple isolated PHP-FPM services simultaneously without interfering with the system-wide software or requiring system-level changes.
 
+> [!NOTE]
+> **Compatibility & Testing**: `ndev` has been successfully tested on **Debian GNU/Linux forky/sid** for compiling, installing, and managing the following PHP versions:
+> * `5.6`
+> * `7.4`
+> * `8.0`
+> * `8.1`
+> * `8.2`
+> * `8.3`
+> * `8.4`
+> * `8.5`
+
 ---
 
 ## Key Features
@@ -11,10 +22,12 @@ It allows you to run multiple isolated PHP-FPM services simultaneously without i
 - **Sandboxed Compilation**: Automatically builds any PHP version from source inside an isolated `bubblewrap` environment with custom, self-healing multiarch compile paths.
 - **Root-free Sandbox Packages**: Downloads, relocates, and resolves required system development packages (`libsqlite3-dev`, `libonig-dev`, etc.) fully within user-space.
 - **Unified Services Control (`ctl`)**: An interactive dashboard to inspect and manage Nginx, MariaDB, PostgreSQL, and custom `ndev` compiled FPM instances.
-- **SQL Database Manager (`db`)**: An interactive wizard and CLI suite to create/drop databases and users for MySQL and PostgreSQL.
+- **SQL Database Manager (`db`)**: An interactive wizard and CLI suite to create/drop databases and users for MySQL.
 - **Ngrok HTTP Tunneling (`grok`)**: Lists active virtual hosts, configures request routing headers, and proxies local traffic over the public web with `ngrok`.
-- **Nginx Virtual Host Manager (`vhost`)**: Prompts for domains, roots, and PHP-FPM sockets, configures Nginx, updates `/etc/hosts`, and reloads configurations (requires sudo).
+- **Nginx Virtual Host Manager (`vhost`)**: Prompts for domains, roots, and PHP-FPM sockets, configures Nginx, updates `/etc/hosts`, optionally generates local SSL certificates, and reloads configurations (requires sudo).
 - **Extension Manager (`ext`)**: Installs and compiles custom PECL extensions (like Redis) and enables or disables them per version.
+- **phpMyAdmin Manager (`pma`)**: One-command download, setup, and auto-launch of phpMyAdmin using the active PHP version.
+- **System Setup Command (`setup`)**: Automatic system package manager installer for MariaDB, Nginx, and Composer (installs Composer locally to `~/.local/bin/composer` and creates a symlink at `~/.local/bin/ndev` pointing to your virtual environment's executable; elevates internally with `sudo` for package installation).
 
 ---
 
@@ -24,6 +37,7 @@ All compiled code, templates, and service configurations are organized under `~/
 - **Builds directory**: `~/.ndev/builds/` (PHP source downloads & extractions)
 - **Installations**: `~/.ndev/php/<version>/`
 - **Sockets & PIDs**: `~/.ndev/run/`
+- **SSL Certificates**: `~/.ndev/certs/` (local SSL/TLS certificates and private keys)
 - **Configuration Templates**: `~/.ndev/templates/` (templates copied when initializing new versions)
 
 ### Where to edit config files:
@@ -49,13 +63,17 @@ sudo apt install -y bubblewrap build-essential pkg-config
 
 #### Optional Feature-specific Packages:
 Depending on which features of `ndev` you plan to use, you will need to install their corresponding host packages:
-- **Nginx Virtual Host Manager (`vhost`)**: Requires `nginx` on the host.
+- **Nginx Virtual Host Manager (`vhost`)**: Requires `nginx` on the host. If you plan to use the `--ssl` flag to generate trusted local SSL certificates, `mkcert` is also required.
   ```bash
   sudo apt install -y nginx
+  
+  # To enable local SSL support (mkcert):
+  sudo apt install -y mkcert
+  mkcert -install
   ```
 - **SQL Database Manager (`db`)**: Requires standard client utilities.
   ```bash
-  sudo apt install -y mysql-client postgresql-client
+  sudo apt install -y mysql-client
   ```
 - **Ngrok HTTP Tunneling (`grok`)**: Requires the `ngrok` binary to be installed on your system. Follow the official instructions on [ngrok.com](https://ngrok.com/download) to install it.
 
@@ -70,6 +88,18 @@ cd ndev
 python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
+
+> [!TIP]
+> **Running commands with `sudo`**: Since `ndev` is installed within a Python virtual environment, running `sudo ndev <command>` directly will result in `sudo: ndev: command not found` (because `sudo` resets the `PATH` environment variable).
+> 
+> * For commands that require root privileges directly (like `vhost`), run them using the virtual environment path:
+>   ```bash
+>   sudo .venv/bin/ndev vhost
+>   ```
+> * The `setup` command should be run **without** `sudo` (e.g. `.venv/bin/ndev setup` or just `ndev setup` if symlinked), and it will automatically prompt for sudo credentials internally only when installing system packages.
+>   ```bash
+>   .venv/bin/ndev setup
+>   ```
 
 ---
 
@@ -87,6 +117,7 @@ python3 -m venv .venv
 | `use <version>` | Set a PHP version as the active CLI binary |
 | `doctor` | Run diagnostics on compile tools, bubblewrap, and packages |
 | `shell` | Open an interactive shell inside the build sandbox |
+| `setup` | Install MariaDB, Nginx, and Composer on the system |
 
 ### Daemon and Socket Commands
 
@@ -123,14 +154,13 @@ ndev ctl
 ```
 
 #### 2. SQL Database Manager (`db`)
-Manage MySQL and PostgreSQL databases:
+Manage MySQL databases:
 ```bash
 # Run the interactive wizard
 ndev db
 
 # Create/Drop databases
-ndev db create-db school --driver mysql
-ndev db drop-db school --driver pgsql
+ndev db create-db school
 
 # Create/Drop database users
 ndev db create-user john --new-password secret --grant-db school
@@ -140,11 +170,25 @@ ndev db drop-user john
 #### 3. Nginx Virtual Host Manager (`vhost`)
 Easily set up Nginx configurations matching a domain to a project root and PHP socket:
 ```bash
+# Set up a standard HTTP virtual host
 sudo ndev vhost --domain project.local --root /home/user/project --php 8.4
+
+# Set up an HTTPS virtual host with local SSL certificate generation (stored in ~/.ndev/certs)
+sudo ndev vhost --domain project.local --root /home/user/project --php 8.4 --ssl
 ```
 
 #### 4. Ngrok HTTP Tunneling (`grok`)
 Proxy local Nginx virtual hosts over public URLs:
 ```bash
 ndev grok
+```
+
+#### 5. phpMyAdmin Manager (`pma` / `phpmyadmin`)
+Set up phpMyAdmin if not installed, and launch it using the active PHP version on an available local port:
+```bash
+# Downloads, configures, and launches phpMyAdmin on a free port (defaults to 8080 or above)
+ndev pma
+
+# Run phpMyAdmin on a specific port
+ndev pma --port 8888
 ```

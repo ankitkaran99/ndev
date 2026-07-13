@@ -3,18 +3,44 @@ import tomllib
 from pathlib import Path
 from ndev.constants import (
     NDEV_DIR, CACHE_DIR, DOWNLOADS_DIR, BUILDS_DIR, CHROOT_DIR,
-    LOGS_DIR, RUN_DIR, PHP_DIR, CONFIG_FILE, DEFAULT_CONFIG
+    LOGS_DIR, RUN_DIR, PHP_DIR, CERTS_DIR, CONFIG_FILE, DEFAULT_CONFIG
 )
 from ndev.logger import logger
 
 def init_layout():
     """Create all required directories in ~/.ndev if they do not exist."""
-    for directory in [NDEV_DIR, CACHE_DIR, DOWNLOADS_DIR, BUILDS_DIR, CHROOT_DIR, LOGS_DIR, RUN_DIR, PHP_DIR]:
+    for directory in [NDEV_DIR, CACHE_DIR, DOWNLOADS_DIR, BUILDS_DIR, CHROOT_DIR, LOGS_DIR, RUN_DIR, PHP_DIR, CERTS_DIR]:
         directory.mkdir(parents=True, exist_ok=True)
     
     if not CONFIG_FILE.exists():
         CONFIG_FILE.write_text(DEFAULT_CONFIG)
         logger.info(f"Initialized default configuration in {CONFIG_FILE}")
+    else:
+        try:
+            content = CONFIG_FILE.read_text()
+            if "configure_flags" in content and "--with-mysqli" not in content:
+                with open(CONFIG_FILE, "rb") as f:
+                    config = tomllib.load(f)
+                build_sec = config.setdefault("build", {})
+                flags = build_sec.setdefault("configure_flags", [])
+                if "--with-mysqli" not in flags:
+                    flags.append("--with-mysqli")
+                    lines = []
+                    for section, s_content in config.items():
+                        lines.append(f"[{section}]")
+                        for k, v in s_content.items():
+                            if isinstance(v, list):
+                                v_str = "[" + ", ".join(f'"{item}"' for item in v) + "]"
+                            elif isinstance(v, str):
+                                v_str = f'"{v}"'
+                            else:
+                                v_str = str(v)
+                            lines.append(f"{k} = {v_str}")
+                        lines.append("")
+                    CONFIG_FILE.write_text("\n".join(lines))
+                    logger.info("Automatically added '--with-mysqli' to existing configuration flags.")
+        except Exception as e:
+            logger.warning(f"Failed to migrate configuration file: {e}")
 
 def load_config():
     """Load configuration from ~/.ndev/config.toml."""
