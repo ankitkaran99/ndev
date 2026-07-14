@@ -99,7 +99,7 @@ def ctl_cmd():
         svc = f"ndev-{version}"
         status = service_status(svc)
         color = "green" if status == "RUNNING" else "red"
-        table.add_row(svc, "ndev FPM", f"[{color}]{status}[/{color}]")
+        table.add_row(svc, "PHP-FPM", f"[{color}]{status}[/{color}]")
             
     console.print(table)
     console.print("")
@@ -132,14 +132,19 @@ def ctl_cmd():
         console.print("----------------------")
         for i, version in enumerate(php_versions):
             status = service_status(f"ndev-{version}")
-            console.print(f"  {i + 1}) PHP {version:<12} {status} (ndev)")
+            console.print(f"  {i + 1}) PHP {version:<12} {status}")
+        console.print(f"  {len(php_versions) + 1}) All PHP-FPM Instances")
                 
         console.print("")
         php_idx = typer.prompt("Select PHP version index", type=int)
-        if php_idx < 1 or php_idx > len(php_versions):
+        if php_idx < 1 or php_idx > len(php_versions) + 1:
             logger.error("Invalid selection.")
             raise typer.Exit(code=1)
-        php_ver = php_versions[php_idx - 1]
+            
+        if php_idx == len(php_versions) + 1:
+            php_ver = "all"
+        else:
+            php_ver = php_versions[php_idx - 1]
         
     services_to_manage = []
     if svc_choice == 1:
@@ -147,11 +152,17 @@ def ctl_cmd():
     elif svc_choice == 2:
         services_to_manage = ["mariadb"]
     elif svc_choice == 3:
-        services_to_manage = [f"ndev-{php_ver}"]
+        if php_ver == "all":
+            services_to_manage = [f"ndev-{v}" for v in php_versions]
+        else:
+            services_to_manage = [f"ndev-{php_ver}"]
     elif svc_choice == 4:
         services_to_manage = ["nginx", "mariadb"]
         if php_ver:
-            services_to_manage.append(f"ndev-{php_ver}")
+            if php_ver == "all":
+                services_to_manage.extend([f"ndev-{v}" for v in php_versions])
+            else:
+                services_to_manage.append(f"ndev-{php_ver}")
                 
     console.print("\n[bold blue]Executing requested actions...[/bold blue]")
     for svc in services_to_manage:

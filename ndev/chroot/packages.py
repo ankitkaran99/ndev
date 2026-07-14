@@ -38,6 +38,19 @@ def install_host_packages(packages: list[str], show_logs: bool = False):
                     dest_root = local_dir / rel_root
                     dest_root.mkdir(parents=True, exist_ok=True)
                     
+                    # Move directory symlinks
+                    for d in list(dirs):
+                        src_dir = Path(root) / d
+                        if src_dir.is_symlink():
+                            dest_dir = dest_root / d
+                            if dest_dir.exists() or dest_dir.is_symlink():
+                                if dest_dir.is_dir() and not dest_dir.is_symlink():
+                                    shutil.rmtree(dest_dir)
+                                else:
+                                    dest_dir.unlink()
+                            shutil.move(src_dir, dest_dir)
+                            dirs.remove(d)
+
                     for file in files:
                         src_file = Path(root) / file
                         dest_file = dest_root / file

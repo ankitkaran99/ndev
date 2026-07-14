@@ -26,6 +26,7 @@ def install_version(version_input: str, show_logs: bool = False) -> str:
         "libpng-dev",
         "libjpeg-dev",
         "libwebp-dev",
+        "libwebpdecoder3",
         "libfreetype-dev",
         "libbz2-dev",
         "libgmp-dev",
