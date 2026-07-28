@@ -86,9 +86,15 @@ def shell():
 
 # Extension command implementations
 @ext_app.command("list")
-def ext_list(version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)")):
+def ext_list(version: str = typer.Argument(None, help="PHP version (e.g. 8.4.12)")):
     """List loaded extensions for a PHP version."""
     from ndev.php.extensions import list_extensions
+    if not version:
+        from ndev.utils import get_version_or_prompt
+        version = get_version_or_prompt(version, "PHP version")
+    if not version:
+        logger.error("PHP version is required.")
+        raise typer.Exit(code=1)
     try:
         exts = list_extensions(version)
         for ext in exts:
@@ -99,8 +105,8 @@ def ext_list(version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)"
 
 @ext_app.command("install")
 def ext_install(
-    ext_name: str = typer.Argument(..., help="Extension name (e.g. redis)"),
-    version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)"),
+    ext_name: str = typer.Argument(None, help="Extension name (e.g. redis)"),
+    version: str = typer.Argument(None, help="PHP version (e.g. 8.4.12)"),
     show_logs: bool = typer.Option(
         False,
         "--show-logs",
@@ -110,6 +116,17 @@ def ext_install(
 ):
     """Install and enable a PECL extension."""
     from ndev.php.extensions import install_extension
+    if not ext_name:
+        ext_name = typer.prompt("Extension name (e.g. redis)").strip()
+    if not ext_name:
+        logger.error("Extension name is required.")
+        raise typer.Exit(code=1)
+    if not version:
+        from ndev.utils import get_version_or_prompt
+        version = get_version_or_prompt(version, "PHP version")
+    if not version:
+        logger.error("PHP version is required.")
+        raise typer.Exit(code=1)
     try:
         install_extension(version, ext_name, show_logs=show_logs)
     except Exception as e:
@@ -118,11 +135,22 @@ def ext_install(
 
 @ext_app.command("uninstall")
 def ext_uninstall(
-    ext_name: str = typer.Argument(..., help="Extension name (e.g. redis)"),
-    version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)")
+    ext_name: str = typer.Argument(None, help="Extension name (e.g. redis)"),
+    version: str = typer.Argument(None, help="PHP version (e.g. 8.4.12)")
 ):
     """Disable/uninstall an extension."""
     from ndev.php.extensions import disable_extension
+    if not ext_name:
+        ext_name = typer.prompt("Extension name (e.g. redis)").strip()
+    if not ext_name:
+        logger.error("Extension name is required.")
+        raise typer.Exit(code=1)
+    if not version:
+        from ndev.utils import get_version_or_prompt
+        version = get_version_or_prompt(version, "PHP version")
+    if not version:
+        logger.error("PHP version is required.")
+        raise typer.Exit(code=1)
     try:
         disable_extension(version, ext_name)
     except Exception as e:
@@ -131,11 +159,22 @@ def ext_uninstall(
 
 @ext_app.command("enable")
 def ext_enable(
-    ext_name: str = typer.Argument(..., help="Extension name (e.g. redis)"),
-    version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)")
+    ext_name: str = typer.Argument(None, help="Extension name (e.g. redis)"),
+    version: str = typer.Argument(None, help="PHP version (e.g. 8.4.12)")
 ):
     """Enable an installed extension."""
     from ndev.php.extensions import enable_extension
+    if not ext_name:
+        ext_name = typer.prompt("Extension name (e.g. redis)").strip()
+    if not ext_name:
+        logger.error("Extension name is required.")
+        raise typer.Exit(code=1)
+    if not version:
+        from ndev.utils import get_version_or_prompt
+        version = get_version_or_prompt(version, "PHP version")
+    if not version:
+        logger.error("PHP version is required.")
+        raise typer.Exit(code=1)
     try:
         enable_extension(version, ext_name)
     except Exception as e:
@@ -144,16 +183,28 @@ def ext_enable(
 
 @ext_app.command("disable")
 def ext_disable(
-    ext_name: str = typer.Argument(..., help="Extension name (e.g. redis)"),
-    version: str = typer.Argument(..., help="PHP version (e.g. 8.4.12)")
+    ext_name: str = typer.Argument(None, help="Extension name (e.g. redis)"),
+    version: str = typer.Argument(None, help="PHP version (e.g. 8.4.12)")
 ):
     """Disable an extension."""
     from ndev.php.extensions import disable_extension
+    if not ext_name:
+        ext_name = typer.prompt("Extension name (e.g. redis)").strip()
+    if not ext_name:
+        logger.error("Extension name is required.")
+        raise typer.Exit(code=1)
+    if not version:
+        from ndev.utils import get_version_or_prompt
+        version = get_version_or_prompt(version, "PHP version")
+    if not version:
+        logger.error("PHP version is required.")
+        raise typer.Exit(code=1)
     try:
         disable_extension(version, ext_name)
     except Exception as e:
         logger.error(f"Error disabling extension: {e}")
         raise typer.Exit(code=1)
+
 
 @app.callback()
 def main():

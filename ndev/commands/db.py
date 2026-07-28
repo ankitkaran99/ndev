@@ -43,11 +43,12 @@ def run_wizard():
     console.print("\nOperation:")
     console.print("  1) Create Database")
     console.print("  2) Drop Database")
-    console.print("  3) Create User")
-    console.print("  4) Drop User")
-    op_choice = typer.prompt("Choice [1-4]", default=1, type=int)
+    console.print("  3) Export Database (mysqldump)")
+    console.print("  4) Create User")
+    console.print("  5) Drop User")
+    op_choice = typer.prompt("Choice [1-5]", default=1, type=int)
     
-    action_map = {1: "create-db", 2: "drop-db", 3: "create-user", 4: "drop-user"}
+    action_map = {1: "create-db", 2: "drop-db", 3: "export-db", 4: "create-user", 5: "drop-user"}
     action = action_map.get(op_choice, "create-db")
     
     target_name = typer.prompt("Database/Username")
@@ -63,6 +64,9 @@ def run_wizard():
     elif action == "drop-db":
         confirm_destructive(False, target_name, f"You are about to DROP database '{target_name}' permanently.")
         execute_drop_db(host, port, admin_user, admin_password, target_name)
+    elif action == "export-db":
+        output_path = typer.prompt("Output SQL file path (optional, press Enter for default stdout/filename)", default=f"{target_name}.sql")
+        execute_export_db(host, port, admin_user, admin_password, target_name, output_path)
     elif action == "create-user":
         new_password = typer.prompt("New password for user", hide_input=True)
         grant_db = typer.prompt("Database to grant privileges to", default=target_name)
@@ -103,6 +107,58 @@ def execute_drop_db(host: str, port: int, user: str, password: Optional[str], da
         logger.error(f"MySQL Error:\n{res.stderr}")
         raise typer.Exit(code=1)
     console.print(f"[bold green]Database '{database}' dropped successfully.[/bold green]")
+
+def execute_export_db(
+    host: str,
+    port: int,
+    user: str,
+    password: Optional[str],
+    database: str,
+    output: Optional[str] = None,
+    quick: bool = True,
+    single_transaction: bool = True,
+    routines: bool = True,
+    triggers: bool = True
+):
+    logger.info(f"Exporting MySQL database '{database}'...")
+    if not shutil.which("mysqldump"):
+        logger.error("mysqldump CLI tool not found.")
+        raise typer.Exit(code=1)
+
+    cmd = ["mysqldump", "-h", host, "-P", str(port), "-u", user]
+    if password:
+        cmd.append(f"--password={password}")
+    if quick:
+        cmd.append("--quick")
+    if single_transaction:
+        cmd.append("--single-transaction")
+    if routines:
+        cmd.append("--routines")
+    if triggers:
+        cmd.append("--triggers")
+    cmd.append(database)
+
+    if output:
+        out_path = os.path.abspath(output)
+        out_dir = os.path.dirname(out_path)
+        if out_dir and not os.path.exists(out_dir):
+            os.makedirs(out_dir, exist_ok=True)
+        try:
+            with open(out_path, "w", encoding="utf-8") as f:
+                res = subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, text=True)
+        except Exception as e:
+            logger.error(f"Failed to open output file '{out_path}': {e}")
+            raise typer.Exit(code=1)
+        if res.returncode != 0:
+            logger.error(f"mysqldump Error:\n{res.stderr}")
+            raise typer.Exit(code=1)
+        console.print(f"[bold green]Database '{database}' exported successfully to '{out_path}'.[/bold green]")
+    else:
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            logger.error(f"mysqldump Error:\n{res.stderr}")
+            raise typer.Exit(code=1)
+        sys.stdout.write(res.stdout)
 
 def execute_create_user(host: str, port: int, user: str, password: Optional[str], new_user: str, new_pass: str, grant_db: Optional[str], user_host: str):
     logger.info(f"Creating user '{new_user}' on MySQL...")
@@ -146,7 +202,7 @@ def db_callback(ctx: typer.Context):
 @db_app.command("create")
 @db_app.command("create-db")
 def create_db_cmd(
-    name: str = typer.Argument(..., help="Database name"),
+    name: str = typer.Argument(None, help="Database name"),
     host: str = typer.Option("localhost", "--host", "-h", help="Database host"),
     port: int = typer.Option(3306, "--port", "-P", help="Database port"),
     user: str = typer.Option("root", "--user", "-u", help="Admin username"),
@@ -157,12 +213,17 @@ def create_db_cmd(
     collation: str = typer.Option("utf8mb4_unicode_ci", "--collation", help="MySQL collation")
 ):
     """Create a MySQL database."""
+    if not name:
+        name = typer.prompt("Database name").strip()
+    if not name:
+        logger.error("Database name is required.")
+        raise typer.Exit(code=1)
     execute_create_db(host, port, user, password, name, owner or "", user_host, charset, collation)
 
 @db_app.command("drop")
 @db_app.command("drop-db")
 def drop_db_cmd(
-    name: str = typer.Argument(..., help="Database name"),
+    name: str = typer.Argument(None, help="Database name"),
     host: str = typer.Option("localhost", "--host", "-h", help="Database host"),
     port: int = typer.Option(3306, "--port", "-P", help="Database port"),
     user: str = typer.Option("root", "--user", "-u", help="Admin username"),
@@ -170,13 +231,52 @@ def drop_db_cmd(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt")
 ):
     """Drop a MySQL database."""
+    if not name:
+        name = typer.prompt("Database name").strip()
+    if not name:
+        logger.error("Database name is required.")
+        raise typer.Exit(code=1)
     confirm_destructive(force, name, f"You are about to DROP database '{name}' permanently.")
     execute_drop_db(host, port, user, password, name)
 
+@db_app.command("export")
+@db_app.command("export-db")
+@db_app.command("dump")
+def export_db_cmd(
+    name: str = typer.Argument(None, help="Database name"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output SQL file path (prints to stdout if omitted)"),
+    host: str = typer.Option("localhost", "--host", "-h", help="Database host"),
+    port: int = typer.Option(3306, "--port", "-P", help="Database port"),
+    user: str = typer.Option("root", "--user", "-u", help="Admin username"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="Admin password"),
+    quick: bool = typer.Option(True, "--quick/--no-quick", help="Retrieve rows for a table from the server a row at a time"),
+    single_transaction: bool = typer.Option(True, "--single-transaction/--no-single-transaction", help="Dump transactional tables in consistent state"),
+    routines: bool = typer.Option(True, "--routines/--no-routines", help="Dump stored routines (procedures and functions)"),
+    triggers: bool = typer.Option(True, "--triggers/--no-triggers", help="Dump triggers")
+):
+    """Export/dump a MySQL database using mysqldump."""
+    if not name:
+        name = typer.prompt("Database name").strip()
+    if not name:
+        logger.error("Database name is required.")
+        raise typer.Exit(code=1)
+    execute_export_db(
+        host=host,
+        port=port,
+        user=user,
+        password=password,
+        database=name,
+        output=output,
+        quick=quick,
+        single_transaction=single_transaction,
+        routines=routines,
+        triggers=triggers
+    )
+
 @db_app.command("create-user")
 def create_user_cmd(
-    username: str = typer.Argument(..., help="Username"),
-    new_password: str = typer.Option(..., "--new-password", help="Password for the user"),
+    username: str = typer.Argument(None, help="Username"),
+    new_password: str = typer.Option(None, "--new-password", help="Password for the user"),
     host: str = typer.Option("localhost", "--host", "-h", help="Database host"),
     port: int = typer.Option(3306, "--port", "-P", help="Database port"),
     user: str = typer.Option("root", "--user", "-u", help="Admin username"),
@@ -185,12 +285,22 @@ def create_user_cmd(
     user_host: str = typer.Option("%", "--user-host", help="MySQL user host (default: %)")
 ):
     """Create a database user."""
+    if not username:
+        username = typer.prompt("Username").strip()
+    if not username:
+        logger.error("Username is required.")
+        raise typer.Exit(code=1)
+    if not new_password:
+        new_password = typer.prompt("Password for the user", hide_input=True).strip()
+    if not new_password:
+        logger.error("Password is required.")
+        raise typer.Exit(code=1)
     db_to_grant = grant_db if grant_db else username
     execute_create_user(host, port, user, password, username, new_password, db_to_grant, user_host)
 
 @db_app.command("drop-user")
 def drop_user_cmd(
-    username: str = typer.Argument(..., help="Username"),
+    username: str = typer.Argument(None, help="Username"),
     host: str = typer.Option("localhost", "--host", "-h", help="Database host"),
     port: int = typer.Option(3306, "--port", "-P", help="Database port"),
     user: str = typer.Option("root", "--user", "-u", help="Admin username"),
@@ -199,5 +309,11 @@ def drop_user_cmd(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt")
 ):
     """Drop a database user."""
+    if not username:
+        username = typer.prompt("Username").strip()
+    if not username:
+        logger.error("Username is required.")
+        raise typer.Exit(code=1)
     confirm_destructive(force, username, f"You are about to DROP user '{username}' permanently.")
     execute_drop_user(host, port, user, password, username, user_host)
+

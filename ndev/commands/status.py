@@ -9,15 +9,14 @@ console = Console()
 
 def status_cmd(version: str = typer.Argument(None, help="PHP version to check status for (defaults to current active version)")):
     """Check status of a PHP-FPM version."""
+    from ndev.utils import get_version_or_prompt
     try:
+        version = get_version_or_prompt(version, "PHP version to check status")
         if not version:
-            if CURRENT_LINK.exists() and CURRENT_LINK.is_symlink():
-                version = CURRENT_LINK.resolve().name
-            else:
-                logger.error("No version specified and no current active version set.")
-                raise typer.Exit(code=1)
-                
+            logger.error("No version specified.")
+            raise typer.Exit(code=1)
         status = get_fpm_status(version)
+
         
         table = Table(title=f"PHP-FPM {version} Status")
         table.add_column("Property", style="bold cyan")

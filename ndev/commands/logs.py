@@ -7,12 +7,13 @@ def logs_cmd(
     lines: int = typer.Option(50, "--lines", "-n", help="Number of lines to display")
 ):
     """View PHP-FPM logs for a version."""
+    from ndev.utils import get_version_or_prompt
     if not version:
-        if CURRENT_LINK.exists() and CURRENT_LINK.is_symlink():
-            version = CURRENT_LINK.resolve().name
-        else:
-            logger.error("No version specified and no current active version set.")
+        version = get_version_or_prompt(version, "PHP version to view logs")
+        if not version:
+            logger.error("No version specified.")
             raise typer.Exit(code=1)
+
             
     parts = version.split(".")
     major_minor = f"{parts[0]}{parts[1]}"

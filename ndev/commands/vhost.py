@@ -7,6 +7,7 @@ import typer
 from pathlib import Path
 from rich.console import Console
 from ndev.logger import logger
+from typing import Optional
 
 console = Console()
 
@@ -63,34 +64,51 @@ def get_user_ndev_dir() -> Path:
             pass
     return Path(os.path.expanduser("~/.ndev"))
 
-def get_php_sockets() -> list[tuple[str, Path]]:
-    sockets = []
-    # ndev sockets
-    ndev_run = get_user_ndev_dir() / "run"
-    if ndev_run.exists():
-        for sock in ndev_run.glob("php*.sock"):
-            name = sock.stem
-            if name.startswith("php"):
-                name = name[3:]
-            if len(name) == 2 and name.isdigit():
-                ver = f"{name[0]}.{name[1]}"
-            else:
-                ver = name
-            sockets.append((ver, sock))
-            
-    return sockets
+def get_installed_php_versions() -> list[dict]:
+    installed = []
+    ndev_dir = get_user_ndev_dir()
+    php_dir = ndev_dir / "php"
+    if php_dir.exists():
+        for path in php_dir.iterdir():
+            if path.is_dir():
+                ver = path.name
+                # get major/minor for socket
+                parts = ver.split(".")
+                if len(parts) >= 2:
+                    mm = f"{parts[0]}{parts[1]}"
+                    label = f"{parts[0]}.{parts[1]}"
+                else:
+                    mm = ver
+                    label = ver
+                sock = ndev_dir / "run" / f"php{mm}.sock"
+                
+                # Check if it is running
+                pid_file = ndev_dir / "run" / f"php-fpm-{mm}.pid"
+                from ndev.runtime.process import is_pid_running, read_pid_file
+                pid = read_pid_file(pid_file)
+                is_running = is_pid_running(pid) if pid else False
+                
+                installed.append({
+                    "version": ver,
+                    "label": label,
+                    "socket": sock,
+                    "running": is_running
+                })
+    # Sort by version
+    from packaging.version import parse as parse_version
+    try:
+        installed.sort(key=lambda x: parse_version(x["version"]))
+    except Exception:
+        installed.sort(key=lambda x: x["version"])
+    return installed
 
 def vhost_cmd(
     domain: str = typer.Option(None, "--domain", "-d", help="Domain (e.g. project.local)"),
     root: str = typer.Option(None, "--root", "-r", help="Project Root Directory"),
-    php: str = typer.Option(None, "--php", "-p", help="PHP socket alias or index"),
-    ssl: bool = typer.Option(False, "--ssl", help="Enable SSL/HTTPS with local certificate generation")
+    php: str = typer.Option(None, "--php", "-p", help="PHP socket alias, version, or index"),
+    ssl: Optional[bool] = typer.Option(None, "--ssl/--no-ssl", help="Enable SSL/HTTPS with local certificate generation")
 ):
     """Create Nginx Virtual Host config, map to hosts file, and reload Nginx."""
-    if os.geteuid() != 0:
-        logger.error("Please run as root (e.g., sudo ndev vhost)")
-        raise typer.Exit(code=1)
-        
     if not domain:
         domain = typer.prompt("Domain (e.g. project.local)").strip()
     if not domain:
@@ -99,58 +117,78 @@ def vhost_cmd(
         
     if not root:
         root = typer.prompt("Project Root").strip()
+    if not root:
+        logger.error("Project Root is required.")
+        raise typer.Exit(code=1)
+        
     root_path = Path(root)
     if not root_path.exists() or not root_path.is_dir():
         logger.error(f"Project root directory does not exist: {root}")
         raise typer.Exit(code=1)
         
-    sockets = get_php_sockets()
-    if not sockets:
-        logger.error("No active PHP-FPM sockets found.")
+    installed_phps = get_installed_php_versions()
+    if not installed_phps:
+        logger.error("No installed PHP versions found. Please install PHP using 'ndev install <version>' first.")
         raise typer.Exit(code=1)
         
     selected_sock = None
+    selected_ver = None
     if php:
-        # Check if match alias
-        clean_php = php.lower()
-        if clean_php.startswith("ndev "):
-            clean_php = clean_php[len("ndev "):]
-        for label, sock in sockets:
-            if clean_php in label.lower():
-                selected_sock = sock
-                break
-        if not selected_sock:
-            try:
-                idx = int(php)
-                if 1 <= idx <= len(sockets):
-                    selected_sock = sockets[idx - 1][1]
-            except ValueError:
-                pass
-        if not selected_sock:
-            logger.error(f"Invalid PHP selection: {php}")
-            raise typer.Exit(code=1)
+        # Check if it is a socket path
+        php_path = Path(php)
+        if php_path.exists() and php_path.suffix == ".sock":
+            selected_sock = php_path
+        else:
+            clean_php = php.lower()
+            if clean_php.startswith("ndev "):
+                clean_php = clean_php[len("ndev "):]
+                
+            for item in installed_phps:
+                if clean_php == item["label"].lower() or clean_php == item["version"].lower():
+                    selected_sock = item["socket"]
+                    selected_ver = item["version"]
+                    break
+                    
+            if not selected_sock:
+                try:
+                    idx = int(php)
+                    if 1 <= idx <= len(installed_phps):
+                        selected_sock = installed_phps[idx - 1]["socket"]
+                        selected_ver = installed_phps[idx - 1]["version"]
+                except ValueError:
+                    pass
+                    
+            if not selected_sock:
+                logger.error(f"Invalid PHP selection: {php}")
+                raise typer.Exit(code=1)
     else:
         console.print("\n[bold]Available PHP Versions[/bold]")
         console.print("----------------------")
-        for i, (label, sock) in enumerate(sockets):
-            console.print(f" {i + 1}) {label}")
+        for i, item in enumerate(installed_phps):
+            status = "[green]Running[/green]" if item["running"] else "[yellow]Stopped[/yellow]"
+            console.print(f" {i + 1}) PHP {item['version']} ({item['label']}) - {status}")
         console.print("")
         choice = typer.prompt("Select PHP version index", type=int)
-        if choice < 1 or choice > len(sockets):
+        if choice < 1 or choice > len(installed_phps):
             logger.error("Invalid selection.")
             raise typer.Exit(code=1)
-        selected_sock = sockets[choice - 1][1]
+        selected_sock = installed_phps[choice - 1]["socket"]
+        selected_ver = installed_phps[choice - 1]["version"]
         
-    nginx_available = Path("/etc/nginx/sites-available")
-    nginx_enabled = Path("/etc/nginx/sites-enabled")
-    hosts_file = Path("/etc/hosts")
-    
-    if not nginx_available.exists() or not nginx_enabled.exists():
-        logger.error("Nginx configuration directories not found.")
-        raise typer.Exit(code=1)
+    if ssl is None:
+        ssl = typer.confirm("Enable SSL/HTTPS?", default=False)
         
-    conf_file = nginx_available / f"{domain}.conf"
-    
+    # If selected PHP version is stopped, start it
+    if selected_ver:
+        selected_item = next((item for item in installed_phps if item["version"] == selected_ver), None)
+        if selected_item and not selected_item["running"]:
+            console.print(f"[yellow]PHP-FPM {selected_ver} is stopped. Starting it...[/yellow]")
+            try:
+                from ndev.runtime.fpm import start_fpm
+                start_fpm(selected_ver)
+            except Exception as e:
+                logger.warning(f"Could not automatically start PHP-FPM: {e}")
+                
     cert_path, key_path = None, None
     if ssl:
         if not shutil.which("mkcert"):
@@ -165,7 +203,43 @@ def vhost_cmd(
         except Exception as e:
             logger.error(f"Failed to generate SSL certificate: {e}")
             raise typer.Exit(code=1)
-
+            
+    if os.geteuid() != 0:
+        console.print("\n[bold yellow]Privileged operations required. Elevating via sudo...[/bold yellow]")
+        cmd = [
+            "sudo",
+            sys.executable,
+            "-m",
+            "ndev",
+            "vhost",
+            "--domain",
+            domain,
+            "--root",
+            root,
+            "--php",
+            str(selected_sock)
+        ]
+        if ssl:
+            cmd.append("--ssl")
+        else:
+            cmd.append("--no-ssl")
+            
+        try:
+            res = subprocess.run(cmd)
+            raise typer.Exit(code=res.returncode)
+        except KeyboardInterrupt:
+            raise typer.Exit(code=1)
+            
+    nginx_available = Path("/etc/nginx/sites-available")
+    nginx_enabled = Path("/etc/nginx/sites-enabled")
+    hosts_file = Path("/etc/hosts")
+    
+    if not nginx_available.exists() or not nginx_enabled.exists():
+        logger.error("Nginx configuration directories not found.")
+        raise typer.Exit(code=1)
+        
+    conf_file = nginx_available / f"{domain}.conf"
+    
     if ssl:
         config_template = f"""server {{
     listen 80;
@@ -238,7 +312,6 @@ server {{
             enabled_link.unlink()
         enabled_link.symlink_to(conf_file)
         
-        # Add to /etc/hosts if not present
         hosts_content = hosts_file.read_text()
         pattern = rf"^\s*127\.0\.0\.1\s+.*\b{re.escape(domain)}\b"
         found = False
@@ -250,7 +323,6 @@ server {{
             with hosts_file.open("a") as f:
                 f.write(f"\n127.0.0.1 {domain}\n")
                 
-        # Test Nginx
         res = subprocess.run(["nginx", "-t"], capture_output=True, text=True)
         if res.returncode != 0:
             logger.error(f"Nginx config test failed:\n{res.stderr}")
@@ -258,7 +330,6 @@ server {{
             conf_file.unlink(missing_ok=True)
             raise typer.Exit(code=1)
             
-        # Reload Nginx
         subprocess.run(["systemctl", "reload", "nginx"], check=True)
         
         console.print(f"\n[bold green]VHost Created Successfully[/bold green]")
@@ -276,3 +347,4 @@ server {{
     except Exception as e:
         logger.error(f"Failed to create virtual host: {e}")
         raise typer.Exit(code=1)
+
