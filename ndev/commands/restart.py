@@ -3,16 +3,24 @@ from ndev.constants import CURRENT_LINK
 from ndev.runtime.fpm import restart_fpm
 from ndev.logger import logger
 
-def restart_cmd(version: str = typer.Argument(None, help="PHP version to restart (defaults to current active version)")):
-    """Restart PHP-FPM for a version."""
+def restart_cmd(target: str = typer.Argument(None, help="PHP version or service (e.g. 8.4, pma) to restart")):
+    """Restart PHP-FPM for a version or a service like phpmyadmin (pma)."""
+    if target and target.lower() in ["pma", "phpmyadmin"]:
+        from ndev.runtime.pma import restart_pma
+        restart_pma()
+        return
     from ndev.utils import get_version_or_prompt
     try:
-        version = get_version_or_prompt(version, "PHP version to restart")
+        version = get_version_or_prompt(target, "PHP version or service to restart")
+        if version and version.lower() in ["pma", "phpmyadmin"]:
+            from ndev.runtime.pma import restart_pma
+            restart_pma()
+            return
         if not version:
-            logger.error("No version specified.")
+            logger.error("No version or service specified.")
             raise typer.Exit(code=1)
         restart_fpm(version)
     except Exception as e:
-        logger.error(f"Failed to restart PHP-FPM: {e}")
+        logger.error(f"Failed to restart service: {e}")
         raise typer.Exit(code=1)
 

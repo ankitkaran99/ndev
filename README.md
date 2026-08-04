@@ -26,7 +26,7 @@ It allows you to run multiple isolated PHP-FPM services simultaneously without i
 - **Ngrok HTTP Tunneling (`grok`)**: Lists active virtual hosts, configures request routing headers, and proxies local traffic over the public web with `ngrok`.
 - **Nginx Virtual Host Manager (`vhost`)**: Prompts for domains, roots, and PHP-FPM sockets, configures Nginx, updates `/etc/hosts`, optionally generates local SSL certificates, and reloads configurations (requires sudo).
 - **Extension Manager (`ext`)**: Installs and compiles custom PECL extensions (like Redis) and enables or disables them per version.
-- **phpMyAdmin Manager (`pma`)**: One-command download, setup, and auto-launch of phpMyAdmin using the active PHP version.
+- **phpMyAdmin Service (`pma`)**: Background service management for phpMyAdmin (start, stop, restart, status via `start pma`, `stop pma`, etc., or `ctl`).
 - **System Setup Command (`setup`)**: Automatic system package manager installer for MariaDB, Nginx, and Composer (installs Composer locally to `~/.local/bin/composer` and creates a symlink at `~/.local/bin/ndev` pointing to your virtual environment's executable; elevates internally with `sudo` for package installation).
 
 ---
@@ -119,15 +119,15 @@ python3 -m venv .venv
 | `shell` | Open an interactive shell inside the build sandbox |
 | `setup` | Install MariaDB, Nginx, and Composer on the system |
 
-### Daemon and Socket Commands
+### Daemon and Service Commands
 
 | Command | Description |
 |---|---|
-| `start <version>` | Start PHP-FPM service for a version |
-| `stop <version>` | Stop PHP-FPM service for a version |
-| `restart <version>` | Restart PHP-FPM service for a version |
-| `reload <version>` | Gracefully reload FPM configuration |
-| `status <version>` | Show status and active socket details for a version |
+| `start <target>` | Start PHP-FPM service for a version or service (e.g. `pma`) |
+| `stop <target>` | Stop PHP-FPM service for a version or service (e.g. `pma`) |
+| `restart <target>` | Restart PHP-FPM service for a version or service (e.g. `pma`) |
+| `reload <target>` | Gracefully reload FPM configuration or service |
+| `status <target>` | Show status for a PHP version or service (e.g. `pma`) |
 | `logs <version>` | Tail active PHP-FPM log output |
 
 ### Extensions Manager
@@ -148,7 +148,7 @@ ndev ext enable redis 8.4.23
 ### Integrated Dev Tools
 
 #### 1. Services Control (`ctl`)
-Launch the interactive dashboard to manage local web servers, databases, and FPMs:
+Launch the interactive dashboard to manage local web servers, databases, phpMyAdmin, and FPMs:
 ```bash
 ndev ctl
 ```
@@ -183,12 +183,17 @@ Proxy local Nginx virtual hosts over public URLs:
 ndev grok
 ```
 
-#### 5. phpMyAdmin Manager (`pma` / `phpmyadmin`)
-Set up phpMyAdmin if not installed, and launch it using the active PHP version on an available local port:
-```bash
-# Downloads, configures, and launches phpMyAdmin on a free port (defaults to 8080 or above)
-ndev pma
+#### 5. phpMyAdmin Service (`pma`)
+phpMyAdmin is managed as a local background service (like PHP-FPM, Nginx, or MariaDB). You can start, stop, restart, or check its status directly or via `ndev ctl`:
 
-# Run phpMyAdmin on a specific port
-ndev pma --port 8888
+```bash
+# Start phpMyAdmin service (downloads and configures automatically on first run)
+ndev start pma
+
+# Check phpMyAdmin service status and access URL
+ndev status pma
+
+# Stop or restart phpMyAdmin service
+ndev stop pma
+ndev restart pma
 ```
