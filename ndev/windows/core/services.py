@@ -79,6 +79,37 @@ def _find_port_owner(port: int) -> tuple[int | None, str | None]:
     """Find PID and process name listening on a TCP port on Windows."""
     try:
         res = subprocess.run(
+            ["netstat", "-ano", "-p", "tcp"],
+            capture_output=True, text=True, timeout=2
+        )
+        target = f":{port}"
+        for line in res.stdout.splitlines():
+            line = line.strip()
+            if "LISTENING" in line and target in line:
+                parts = line.split()
+                if len(parts) >= 5:
+                    pid_str = parts[-1]
+                    if pid_str.isdigit():
+                        pid = int(pid_str)
+                        name = f"PID {pid}"
+                        try:
+                            t_res = subprocess.run(
+                                ["tasklist.exe", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                                capture_output=True, text=True, timeout=2
+                            )
+                            if t_res.stdout:
+                                csv_parts = t_res.stdout.strip().split('","')
+                                if csv_parts and csv_parts[0]:
+                                    name = csv_parts[0].replace('"', '')
+                        except Exception:
+                            pass
+                        return pid, name
+    except Exception:
+        pass
+
+    # Fallback to PowerShell if netstat was unavailable
+    try:
+        res = subprocess.run(
             ["powershell.exe", "-NoProfile", "-Command",
              f"(Get-NetTCPConnection -LocalPort {port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess)"],
             capture_output=True, text=True, timeout=3
