@@ -72,21 +72,22 @@ def _overlay_zip_flatten_single_root(
     inner_files = [f for f in extract_tmp.iterdir() if f.is_file()]
     root_src = inner_dirs[0] if (len(inner_dirs) == 1 and not inner_files) else extract_tmp
 
-    for item in root_src.iterdir():
-        dest = target / item.name
-        if item.is_dir():
-            # If directory is in preserve list and already contains user files, DO NOT wipe it!
-            if item.name in preserve_dirs and dest.exists() and any(dest.iterdir()):
-                continue
-            if dest.exists():
-                shutil.rmtree(dest)
-            shutil.copytree(item, dest)
-        elif item.is_file():
-            # If file is in preserve list and already exists, DO NOT overwrite it!
-            if item.name in preserve_files and dest.exists() and dest.stat().st_size > 0:
-                continue
-            shutil.copy2(item, dest)
+    def _copy_tree_recursive(src: Path, dst: Path) -> None:
+        dst.mkdir(parents=True, exist_ok=True)
+        for item in src.iterdir():
+            dest_item = dst / item.name
+            if item.is_dir():
+                # If directory is in preserve list (e.g. data/ in MariaDB) and already contains user files, DO NOT wipe it!
+                if item.name in preserve_dirs and dest_item.exists() and any(dest_item.iterdir()):
+                    continue
+                _copy_tree_recursive(item, dest_item)
+            elif item.is_file():
+                # If file is in preserve list (e.g. nginx.conf, my.ini) and already exists, DO NOT overwrite it!
+                if item.name in preserve_files and dest_item.exists() and dest_item.stat().st_size > 0:
+                    continue
+                shutil.copy2(item, dest_item)
 
+    _copy_tree_recursive(root_src, target)
     shutil.rmtree(extract_tmp, ignore_errors=True)
 
 
@@ -100,12 +101,13 @@ def install_nginx(version: str = DEFAULT_NGINX_VERSION) -> Path:
     _overlay_zip_flatten_single_root(
         zip_path,
         paths.NGINX_DIR,
-        preserve_dirs=["conf", "logs", "temp"],
+        preserve_dirs=["logs", "temp"],
         preserve_files=["nginx.conf"],
     )
     
     paths.NGINX_CONF_D.mkdir(parents=True, exist_ok=True)
     paths.NGINX_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    (paths.NGINX_DIR / "temp").mkdir(parents=True, exist_ok=True)
     _include_vhosts_in_main_conf()
     return paths.NGINX_DIR
 
