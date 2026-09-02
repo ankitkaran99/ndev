@@ -4,6 +4,10 @@
 
 A single unified repository and package with automatic OS detection that uses native operating system primitives for each platform.
 
+<p align="center">
+  <img src="ui.PNG" alt="ndev Interactive TUI Dashboard" width="850">
+</p>
+
 ---
 
 ## Key Features
