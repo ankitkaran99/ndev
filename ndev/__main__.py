@@ -1,4 +1,4 @@
-from ndev.cli import app
+from ndev.cli import main
 
 if __name__ == "__main__":
-    app()
+    main()

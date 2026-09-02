@@ -1,31 +1,36 @@
 # ndev
 
-`ndev` is a powerful, non-root developer tool suite to compile, install, and manage isolated PHP-FPM runtimes, custom PECL extensions, MySQL/MariaDB databases, Nginx virtual hosts, trusted local SSL certificates, Mailpit email sandbox, and public HTTP tunneling on **Debian/Ubuntu-based Linux systems**.
+`ndev` is a powerful, non-root / non-admin developer tool suite to manage, run, and isolate PHP runtimes (PHP-FPM on Linux, FastCGI worker pools on Windows), PECL extensions, MySQL/MariaDB databases, Nginx virtual hosts, trusted local SSL certificates, Mailpit email sandbox, and public HTTP tunneling natively on **Linux** (Debian/Ubuntu) and **Windows 10/11**.
 
-It allows you to run multiple isolated PHP-FPM versions simultaneously without interfering with system-wide packages or requiring system-level modifications.
+A single unified repository and package with automatic OS detection that uses native operating system primitives for each platform.
 
 ---
 
 ## Key Features
 
-- **Sandboxed PHP Compilation**: Automatically builds and isolates any PHP release (`5.6`, `7.4`, `8.0`, `8.1`, `8.2`, `8.3`, `8.4`, `8.5`) from official source inside an unprivileged `bubblewrap` sandbox with custom, self-healing multiarch compile paths.
-- **Root-Free Development Packages**: Automatically downloads, relocates, and resolves required system development packages (`libsqlite3-dev`, `libonig-dev`, `libxml2-dev`, etc.) fully in user space.
-- **Interactive Terminal UI Dashboard (`ui`)**: Modern, asynchronous Textual TUI dashboard for real-time stack monitoring, live auto-refresh, quick batch actions (Start/Stop/Restart All), active CLI PHP switching, integrated log tailing, and virtual host launching.
-- **Interactive Control Menu (`ctl`)**: Unified interactive CLI service selector to inspect and manage Nginx, MariaDB, phpMyAdmin, and custom `ndev` compiled FPM instances.
-- **Nginx Virtual Host Manager (`vhost`)**: Automated Nginx server blocks with custom PHP-FPM sockets, canonical HTTP $\rightarrow$ HTTPS redirects, trusted local SSL certificate generation (`mkcert`), and `/etc/hosts` mapping.
+- **Multi-Version PHP Management**:
+  - **Linux**: Sandboxed source compilation (`5.6` – `8.5`) inside an unprivileged `bubblewrap` environment with custom, self-healing multiarch paths.
+  - **Windows**: Instant zero-compilation prebuilt official binaries from `windows.php.net` (NTS & TS, x64 & x86).
+- **Process & Daemon Model**:
+  - **Linux**: Isolated native `php-fpm` worker pools communicating over Unix domain sockets (`~/.ndev/run/php<ver>.sock`).
+  - **Windows**: Deterministic multi-process `php-cgi.exe` FastCGI worker pools load-balanced by Nginx `upstream` blocks.
+- **Interactive Terminal UI Dashboard (`ui` / `tui` / `dashboard`)**: Modern, asynchronous Textual TUI dashboard for real-time stack monitoring, live auto-refresh, quick batch actions (Start/Stop/Restart All), active CLI PHP switching, integrated log tailing, and virtual host launching.
+- **Interactive Control Menu (`ctl`)**: Unified terminal service selector to monitor and control Nginx, MariaDB, phpMyAdmin, and PHP instances.
+- **Nginx Virtual Host Manager (`vhost`)**: Automated Nginx server blocks with custom upstreams, canonical HTTP $\rightarrow$ HTTPS redirects, trusted local SSL certificate generation (`mkcert`), and `/etc/hosts` / Windows `hosts` mapping.
 - **SQL Database Manager (`db`)**: Interactive wizard and CLI suite to create/drop databases, manage users, grant permissions, and export SQL dumps (`mysqldump`).
-- **PECL Extension Manager (`ext`)**: Compiles and installs custom PECL extensions (Redis, Xdebug, etc.) and enables or disables them per PHP version.
+- **PECL Extension Manager (`ext`)**: Compiles or downloads precompiled PECL `.dll` / `.so` binaries (Redis, Xdebug, etc.) and enables/disables them per PHP version.
 - **Local Email Sandbox (`mailpit`)**: Zero-dependency local SMTP email catcher & modern web UI (`http://127.0.0.1:8025`) using prebuilt binaries.
 - **phpMyAdmin Background Service (`pma`)**: One-command background phpMyAdmin service management served locally over `http://127.0.0.1:8080`.
 - **Public HTTP Tunneling (`grok`)**: Interactive ngrok tunnel launcher to proxy local virtual hosts over the web with automatic Host header rewriting.
-- **Interactive Sandbox Shell (`shell`)**: Launch an interactive shell inside the bubblewrap build environment.
-- **Automated Stack Setup (`setup`)**: Automatic system package installer for MariaDB, Nginx, and Composer (installs Composer and `ndev` shims to `~/.local/bin/`).
+- **Automated Stack Setup (`setup`)**:
+  - **Linux**: Installs MariaDB, Nginx, Composer, and creates symlinks in `~/.local/bin/`.
+  - **Windows**: Portable zero-installer extraction of Nginx, MariaDB, mkcert, ngrok, Mailpit, Composer, and CA bundles under `%USERPROFILE%\.ndev\` with global batch shims on `PATH`.
 
 ---
 
-## Differences Between Linux (`ndev`) and Windows (`ndev-win`)
+## Platform Differences: Linux (`ndev`) vs. Windows (`ndev-win`)
 
-| Subsystem | Linux Original (`ndev`) | Windows Counterpart (`ndev-win`) |
+| Subsystem | Linux (`ndev`) | Windows (`ndev`) |
 | :--- | :--- | :--- |
 | **PHP Distribution** | Compiles PHP from official source using `bubblewrap` sandbox and `gcc`/`make` | Downloads official precompiled Windows builds from `windows.php.net` (NTS & TS, x64 & x86) |
 | **Process Model** | Native `php-fpm` daemon with Unix domain sockets (`~/.ndev/run/php<ver>.sock`) | Multi-process worker pool of `php-cgi.exe` instances over deterministic TCP ports (`13000+`), balanced via Nginx `upstream` |
@@ -43,8 +48,7 @@ It allows you to run multiple isolated PHP-FPM versions simultaneously without i
 
 ## Directory Structure & Layout
 
-All runtimes, templates, and service configurations are organized under `~/.ndev`:
-
+### Linux Layout (`~/.ndev`)
 ```text
 ~/.ndev/
 ├── bin/                    # Standalone binaries (mailpit)
@@ -63,47 +67,69 @@ All runtimes, templates, and service configurations are organized under `~/.ndev
 └── config.toml             # Global build and runtime configuration
 ```
 
+### Windows Layout (`%USERPROFILE%\.ndev`)
+```text
+%USERPROFILE%\.ndev\
+├── certs\                  # Local SSL certificates and cacert.pem CA bundle
+├── downloads\              # Cached zip downloads
+├── mariadb\                # Portable MariaDB installation & data directory
+│   ├── bin\                # mysqld.exe, mysql.exe, mysqldump.exe
+│   └── data\               # Database storage
+├── nginx\                  # Portable Nginx installation
+│   ├── conf\
+│   │   ├── nginx.conf      # Main Nginx config (patches include ndev-vhosts/*.conf)
+│   │   └── ndev-vhosts\    # Virtual host configurations (*.conf)
+│   ├── logs\               # Nginx access/error logs per virtual host
+│   └── temp\               # FastCGI and proxy client temporary body storage
+├── php\
+│   └── <version>\          # Extracted PHP binaries (php.exe, php-cgi.exe, php.ini, ext/)
+├── pma\                    # Standalone phpMyAdmin installation & config.inc.php
+├── run\                    # Active PID and FastCGI worker state files (JSON)
+├── shims\                  # Global batch shims for PATH (php, composer, mysql, mailpit, ndev, etc.)
+├── mailpit.db              # Persistent message database for Mailpit
+└── config.json             # Global configuration (ports, worker counts)
+```
+
 ---
 
 ## Quick Start & Installation
 
-### 1. Prerequisites (APT)
-
-Ensure the host system has the base build dependencies installed:
+### Linux (Debian / Ubuntu)
 
 ```bash
+# 1. Install prerequisites
 sudo apt update
-sudo apt install -y bubblewrap build-essential pkg-config
-```
-
-#### Optional Component Packages:
-```bash
-# Web server & local SSL
-sudo apt install -y nginx mkcert
+sudo apt install -y bubblewrap build-essential pkg-config nginx mkcert default-mysql-client
 mkcert -install
 
-# Database client
-sudo apt install -y default-mysql-client
-```
-
-### 2. Clone & Install ndev
-
-```bash
-# 1. Clone repository
+# 2. Clone repository & install in editable mode
 git clone https://github.com/ankitkaran99/ndev.git
 cd ndev
-
-# 2. Create virtual environment and install in editable mode
 python3 -m venv .venv
 .venv/bin/pip install -e .
 
 # 3. Setup system components and local shims
 .venv/bin/ndev setup
+
+# 4. Add ~/.local/bin to your PATH
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Add `~/.local/bin` to your `PATH` if not already present:
-```bash
-export PATH="$HOME/.local/bin:$PATH"
+### Windows 10 / 11
+
+```powershell
+# 1. Clone repository & install in editable mode
+git clone https://github.com/ankitkaran99/ndev.git
+cd ndev
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e .
+
+# 2. Download and configure all portable components
+ndev setup
+
+# 3. Add shims to user PATH
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:USERPROFILE\.ndev\shims", "User")
 ```
 
 ---
@@ -113,13 +139,13 @@ export PATH="$HOME/.local/bin:$PATH"
 ### PHP Version Management
 
 ```bash
-# List available PHP versions from php.net
+# List available PHP versions from php.net / windows.php.net
 ndev available
 
-# Compile and install a PHP version from source (e.g. 8.4, 8.3, 7.4)
+# Install a PHP version (compiled on Linux, downloaded on Windows)
 ndev install 8.4
 
-# List locally installed PHP versions and FPM daemon status
+# List locally installed PHP versions and daemon/pool status
 ndev list
 
 # Switch globally active CLI PHP version
@@ -140,19 +166,22 @@ ndev uninstall 7.4
 ### Process & Service Management
 
 ```bash
-# Start / Stop / Restart a PHP-FPM pool or service
+# Start / Stop / Restart a PHP pool or service
 ndev start 8.4
 ndev stop 8.4
 ndev restart 8.4
 
 # Control Nginx, MariaDB, phpMyAdmin, or Mailpit
+ndev start nginx
+ndev start mariadb
 ndev start pma
 ndev start mailpit
+ndev start all
 
-# Reload PHP-FPM configuration
-ndev reload 8.4
+# Reload Nginx configuration
+ndev reload nginx
 
-# View service status
+# View service status dashboard
 ndev status
 ndev status 8.4
 ndev status pma
@@ -170,7 +199,7 @@ ndev ui
 # Aliases: ndev tui, ndev dashboard
 ```
 
-* **Live Status Dashboard**: Real-time health, PIDs, Unix sockets, and listening ports for Nginx, MariaDB, phpMyAdmin, Mailpit, and all PHP-FPM daemons.
+* **Live Status Dashboard**: Real-time health, PIDs, sockets/ports for Nginx, MariaDB, phpMyAdmin, Mailpit, and all PHP instances.
 * **Quick Batch Actions**: One-click **Start All**, **Stop All**, **Restart All**, and **Reload Nginx**.
 * **On-the-fly CLI PHP Switcher**: Change globally active CLI PHP version instantly via dropdown.
 * **Integrated Log Tail Viewer**: Select and inspect live tails for Nginx, MariaDB, PHP, and Virtual Host logs.
@@ -193,14 +222,20 @@ ndev ctl
 Create and manage local Nginx sites mapped to `127.0.0.1`:
 
 ```bash
-# Interactive wizard (requires sudo for /etc/nginx/ and /etc/hosts)
-sudo ndev vhost
+# Interactive wizard
+ndev vhost
 
 # Create a standard HTTP virtual host
-sudo ndev vhost --domain project.local --root /home/user/projects/myproject --php 8.4
+ndev vhost --domain project.local --root /path/to/project --php 8.4
 
 # Create an HTTPS virtual host with trusted local SSL certificates (mkcert)
-sudo ndev vhost --domain project.local --root /home/user/projects/myproject --php 8.4 --ssl
+ndev vhost --domain project.local --root /path/to/project --php 8.4 --ssl
+
+# List all configured virtual hosts
+ndev vhost-list
+
+# Remove a virtual host
+ndev vhost-remove --domain project.local
 ```
 
 ---
@@ -208,6 +243,13 @@ sudo ndev vhost --domain project.local --root /home/user/projects/myproject --ph
 ### SQL Database Manager (`db`)
 
 Manage MySQL/MariaDB databases and users:
+
+> [!TIP]
+> **Default MariaDB / MySQL Credentials**:
+> * **Host**: `127.0.0.1` or `localhost`
+> * **Port**: `3306`
+> * **Username**: `root`
+> * **Password**: `root` (Windows) / system auth (Linux)
 
 ```bash
 # Launch interactive database wizard
@@ -233,13 +275,13 @@ ndev db drop-db mydb
 
 ### PECL Extension Manager (`ext`)
 
-Compile and manage PECL extensions for any installed PHP version:
+Manage PECL extensions for any installed PHP version:
 
 ```bash
 # List loaded extensions for a PHP version
 ndev ext list 8.4
 
-# Install and compile a PECL extension (e.g. redis, xdebug)
+# Install a PECL extension (e.g. redis, xdebug)
 ndev ext install redis 8.4
 
 # Enable or disable an extension
@@ -339,7 +381,7 @@ Or via Symfony Mailer / PHPMailer / Python / Node.js — just send SMTP traffic 
 
 ### Interactive Developer Shell (`shell`)
 
-Open an interactive shell inside the bubblewrap build sandbox:
+Open an interactive shell pre-configured with active PHP, Composer, MySQL, and Nginx on your `PATH`:
 
 ```bash
 ndev shell
@@ -363,21 +405,10 @@ ndev grok
 # Run environment diagnostics
 ndev doctor
 
-# View / tail PHP-FPM logs
+# View / tail logs
+ndev logs
 ndev logs 8.4
 
-# Clean download cache and temporary build files
+# Clean download cache and temporary files
 ndev clean
 ```
-
----
-
-## Configuration
-
-You can customize compilation and runtime settings by editing `~/.ndev/config.toml` or individual PHP configuration files:
-
-* **Global Config**: `~/.ndev/config.toml`
-* **PHP Configuration (`php.ini`)**: `~/.ndev/php/<version>/etc/php.ini`
-* **Extension Configuration (`conf.d/`)**: `~/.ndev/php/<version>/etc/conf.d/<ext>.ini`
-* **PHP-FPM Server Configuration**: `~/.ndev/php/<version>/etc/php-fpm.conf`
-* **PHP-FPM Pool Configuration**: `~/.ndev/php/<version>/etc/php-fpm.d/www.conf`

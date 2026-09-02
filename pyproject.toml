@@ -5,29 +5,34 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ndev"
 version = "0.1.0"
-description = "A CLI tool to compile, install, and manage isolated PHP-FPM versions on Debian"
+description = "Cross-platform developer stack manager for PHP, FastCGI/PHP-FPM, MariaDB, Nginx, SSL, and Mailpit on Linux and Windows"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 authors = [
     { name = "Antigravity Dev Team" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
 ]
 dependencies = [
+    "click>=8.1.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
+    "textual>=0.40.0",
     "httpx>=0.24.0",
     "filelock>=3.12.0",
     "packaging>=23.0",
     "jinja2>=3.1.0",
-    "textual>=0.40.0",
 ]
 
 [project.scripts]
-ndev = "ndev.cli:app"
+ndev = "ndev.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["ndev*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.tmpl", "*.conf", "*.json"]
