@@ -359,7 +359,7 @@ def get_pma_info() -> ComponentInfo:
     elif update_avail:
         status = f"Update Available ({curr_ver} -> {latest_ver})"
 
-    return ComponentInfo("pma", "phpMyAdmin Web UI", curr_ver, latest_ver, update_avail, installed, status, err)
+    return ComponentInfo("pma", "PMA (phpMyAdmin)", curr_ver, latest_ver, update_avail, installed, status, err)
 
 
 def upgrade_pma() -> tuple[bool, str]:

@@ -217,10 +217,7 @@ def get_pma_info() -> ComponentInfo:
     pma_st = pma_rt.get_pma_status()
     installed = pma_st.get("installed", False)
     curr_ver = None
-    latest_ver = None
-    err = None
-
-    pma_dir = NDEV_DIR / "phpmyadmin"
+    pma_dir = pma_rt.PMA_DIR
     if installed and pma_dir.exists():
         for f in pma_dir.glob("RELEASE-DATE-*"):
             curr_ver = f.name.replace("RELEASE-DATE-", "")
@@ -234,7 +231,7 @@ def get_pma_info() -> ComponentInfo:
     except Exception as e:
         latest_ver = pma_rt.DEFAULT_PMA_VERSION
         if not err:
-            err = f"Could not query phpMyAdmin version API: {e}"
+            err = f"Could not query PMA version API: {e}"
 
     update_avail = False
     if curr_ver and latest_ver and _clean_ver(curr_ver) != _clean_ver(latest_ver):
@@ -246,7 +243,7 @@ def get_pma_info() -> ComponentInfo:
     elif update_avail:
         status = f"Update Available ({curr_ver} -> {latest_ver})"
 
-    return ComponentInfo("pma", "phpMyAdmin Web UI", curr_ver, latest_ver, update_avail, installed, status, err)
+    return ComponentInfo("pma", "PMA (phpMyAdmin)", curr_ver, latest_ver, update_avail, installed, status, err)
 
 
 def upgrade_pma() -> tuple[bool, str]:
@@ -258,7 +255,7 @@ def upgrade_pma() -> tuple[bool, str]:
     target_ver = info.latest_version or pma_rt.DEFAULT_PMA_VERSION
 
     # Preserve config.inc.php
-    pma_dir = NDEV_DIR / "phpmyadmin"
+    pma_dir = pma_rt.PMA_DIR
     config_inc = pma_dir / "config.inc.php"
     config_backup = None
     if config_inc.exists():

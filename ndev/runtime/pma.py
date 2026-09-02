@@ -12,9 +12,14 @@ from ndev.constants import NDEV_DIR, CURRENT_LINK, RUN_DIR, LOGS_DIR
 from ndev.logger import logger
 from ndev.runtime.process import is_pid_running, read_pid_file, kill_process
 
-console = Console()
+PMA_DIR = NDEV_DIR / "pma"
+# Backward compatibility migration for legacy phpmyadmin directory
+if not PMA_DIR.exists() and (NDEV_DIR / "phpmyadmin").exists():
+    try:
+        (NDEV_DIR / "phpmyadmin").rename(PMA_DIR)
+    except Exception:
+        PMA_DIR = NDEV_DIR / "phpmyadmin"
 
-PMA_DIR = NDEV_DIR / "phpmyadmin"
 PMA_PID_FILE = RUN_DIR / "pma.pid"
 PMA_PORT_FILE = RUN_DIR / "pma.port"
 PMA_LOG_FILE = LOGS_DIR / "pma.log"
