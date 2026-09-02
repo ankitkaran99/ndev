@@ -31,13 +31,13 @@ class PhpRelease:
 
 
 def _fetch_json(url: str) -> dict:
-    req = urllib.request.Request(url, headers={"User-Agent": "ndev-win/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
 def _fetch_html(url: str) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": "ndev-win/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read().decode("utf-8", errors="ignore")
 
@@ -190,7 +190,7 @@ def download_release(release: PhpRelease) -> Path:
     if dest.exists() and dest.stat().st_size > 0:
         return dest
     tmp = dest.with_suffix(".part")
-    req = urllib.request.Request(release.zip_url, headers={"User-Agent": "ndev-win/0.1"})
+    req = urllib.request.Request(release.zip_url, headers={"User-Agent": "ndev/0.1.0"})
     try:
         with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
             chunk_size = 65536

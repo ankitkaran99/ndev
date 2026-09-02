@@ -187,7 +187,7 @@ def create_vhost(domain: str, root: str | Path, php_version: str, ssl: bool = Fa
             f"<?php\n"
             f"// Virtual host: {domain}\n"
             f"echo '<h1>Welcome to {domain}</h1>';\n"
-            f"echo '<p>Served by Nginx & PHP {php_version} via ndev-win</p>';\n"
+            f"echo '<p>Served by Nginx & PHP {php_version} via ndev</p>';\n"
             f"phpinfo();\n",
             encoding="utf-8"
         )

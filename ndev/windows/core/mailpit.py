@@ -56,7 +56,7 @@ def binary() -> Path:
 def _fetch_latest_release() -> dict:
     req = urllib.request.Request(
         RELEASES_API_URL,
-        headers={"User-Agent": "ndev-win/1.0"},
+        headers={"User-Agent": "ndev/0.1.0"},
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read())
@@ -96,7 +96,7 @@ def install() -> Path:
 
     # Download (skip if already cached)
     if not dl_path.exists():
-        req = urllib.request.Request(url, headers={"User-Agent": "ndev-win/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
         tmp = dl_path.with_suffix(".part")
         with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
             shutil.copyfileobj(resp, f)

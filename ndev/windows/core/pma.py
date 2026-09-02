@@ -29,7 +29,7 @@ def install(version: str = DEFAULT_VERSION) -> Path:
     url = DOWNLOAD_URL_TMPL.format(version=version)
     zip_path = paths.DOWNLOADS_DIR / f"phpMyAdmin-{version}.zip"
     if not zip_path.exists():
-        req = urllib.request.Request(url, headers={"User-Agent": "ndev-win/0.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
         tmp = zip_path.with_suffix(".part")
         with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
             shutil.copyfileobj(resp, f)

@@ -35,7 +35,7 @@ console = Console()
 @click.group(invoke_without_command=True)
 @click.pass_context
 def main(ctx: click.Context):
-    """ndev-win: native-Windows PHP/Nginx/MariaDB dev environment manager."""
+    """ndev: Windows PHP/FastCGI/Nginx/MariaDB developer environment manager."""
     paths.ensure_dirs()
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -313,8 +313,8 @@ def logs(target, lines):
 
 @main.command()
 def doctor():
-    """Diagnose the ndev-win environment and components."""
-    table = Table(title="ndev-win Doctor Diagnostic Report")
+    """Diagnose the ndev environment and components."""
+    table = Table(title="ndev Doctor Diagnostic Report")
     table.add_column("Component", style="bold cyan")
     table.add_column("Status")
     table.add_column("Details")
@@ -647,7 +647,7 @@ def status(target):
         return
 
     # Overall status table
-    table = Table(title="ndev-win Service Status Dashboard")
+    table = Table(title="ndev Service Status Dashboard")
     table.add_column("Service", style="bold cyan")
     table.add_column("Type", style="magenta")
     table.add_column("Status")
@@ -752,7 +752,7 @@ def ctl(ctx: click.Context):
         return
 
     console.print("\n[bold blue]==================================================================[/bold blue]")
-    console.print("[bold blue]                 ndev-win Web Services Control                    [/bold blue]")
+    console.print("[bold blue]                   ndev Web Services Control                      [/bold blue]")
     console.print("[bold blue]==================================================================[/bold blue]\n")
 
     status.callback(None)
@@ -1159,7 +1159,7 @@ def db(ctx: click.Context):
 
     # Interactive Wizard matching Linux ndev db
     console.print("\n[bold blue]========================================[/bold blue]")
-    console.print("[bold blue]      ndev-win Database Manager Wizard   [/bold blue]")
+    console.print("[bold blue]        ndev Database Manager Wizard     [/bold blue]")
     console.print("[bold blue]========================================[/bold blue]\n")
 
     console.print("Operation:")
@@ -1764,10 +1764,10 @@ def shell():
     curr_path = env.get("PATH", "")
     env["PATH"] = ";".join(extra_paths) + ";" + curr_path
 
-    console.print(f"\n[bold blue]Entering ndev-win interactive shell (Active PHP: {curr_v or 'none'})...[/bold blue]")
+    console.print(f"\n[bold blue]Entering ndev interactive shell (Active PHP: {curr_v or 'none'})...[/bold blue]")
     console.print("[dim]Type 'exit' to return to normal shell.[/dim]\n")
 
-    ps_prompt_script = f"function prompt {{ '`n(ndev: PHP {curr_v or 'none'}) ' + (Get-Location) + '> ' }}; Write-Host 'ndev-win developer environment active.' -ForegroundColor Green"
+    ps_prompt_script = f"function prompt {{ '`n(ndev: PHP {curr_v or 'none'}) ' + (Get-Location) + '> ' }}; Write-Host 'ndev developer environment active.' -ForegroundColor Green"
     try:
         subprocess.run(["powershell.exe", "-NoLogo", "-NoExit", "-Command", ps_prompt_script], env=env)
     except Exception:
@@ -1797,7 +1797,7 @@ def setup(nginx, mariadb, mkcert, ngrok, composer, cacert, nginx_version, mariad
         versions["mkcert"] = mkcert_version
 
     console.print("\n[bold blue]==================================================================[/bold blue]")
-    console.print("[bold blue]              ndev-win System Environment Setup                   [/bold blue]")
+    console.print("[bold blue]                ndev System Environment Setup                     [/bold blue]")
     console.print("[bold blue]==================================================================[/bold blue]\n")
 
     with console.status("[bold green]Downloading and configuring components...[/bold green]"):

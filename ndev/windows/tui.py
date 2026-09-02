@@ -153,9 +153,9 @@ DataTable {
 # ── MAIN APPLICATION ──────────────────────────────────────────────────────────
 
 class NdevDashboard(App):
-    """Modern asynchronous TUI dashboard for ndev-win."""
+    """Modern asynchronous TUI dashboard for ndev."""
 
-    TITLE = "ndev-win"
+    TITLE = "ndev"
     SUB_TITLE = "Local Web Stack Dashboard"
     CSS = TUI_CSS
 
@@ -240,7 +240,7 @@ class NdevDashboard(App):
     async def on_mount(self) -> None:
         """Initialize data tables, load logs, populate dropdowns, and start background polling."""
         self._init_tables()
-        self.log_message("[bold green]ndev-win TUI dashboard loaded.[/bold green]")
+        self.log_message("[bold green]ndev TUI dashboard loaded.[/bold green]")
 
         # Initial data load
         self._refresh_all_data(full_rebuild=True)

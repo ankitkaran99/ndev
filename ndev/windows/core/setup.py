@@ -28,7 +28,7 @@ def _download(url: str, dest: Path) -> Path:
     if dest.exists() and dest.stat().st_size > 0:
         return dest
     tmp = dest.with_suffix(dest.suffix + ".part")
-    req = urllib.request.Request(url, headers={"User-Agent": "ndev-win/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
     try:
         with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
             chunk_size = 65536
@@ -96,7 +96,7 @@ def _include_vhosts_in_main_conf() -> None:
             'server {\n'
             '    listen 80 default_server;\n'
             '    server_name _;\n'
-            '    return 404 "ndev-win: No virtual host configured for this domain.\\n";\n'
+            '    return 404 "ndev: No virtual host configured for this domain.\\n";\n'
             '}\n',
             encoding="utf-8"
         )

@@ -18,7 +18,7 @@ KNOWN_TOOLSETS = ["vs17", "vs16", "vc15", "vc14", "vc11"]
 
 
 def _http_get_text(url: str) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": "ndev-win/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read().decode("utf-8", errors="ignore")
 
@@ -105,7 +105,7 @@ def install(
     zip_url = find_release_zip(ext, ext_version, php_version, arch, thread_safe)
     zip_path = paths.DOWNLOADS_DIR / Path(zip_url).name
     if not zip_path.exists() or zip_path.stat().st_size == 0:
-        req = urllib.request.Request(zip_url, headers={"User-Agent": "ndev-win/0.1"})
+        req = urllib.request.Request(zip_url, headers={"User-Agent": "ndev/0.1.0"})
         tmp = zip_path.with_suffix(".part")
         try:
             with urllib.request.urlopen(req, timeout=90) as resp, open(tmp, "wb") as f:
