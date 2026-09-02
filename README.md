@@ -28,7 +28,7 @@ A single unified repository and package with automatic OS detection that uses na
 
 ---
 
-## Platform Differences: Linux (`ndev`) vs. Windows (`ndev-win`)
+## Platform Differences: Linux (`ndev`) vs. Windows (`ndev`)
 
 | Subsystem | Linux (`ndev`) | Windows (`ndev`) |
 | :--- | :--- | :--- |
@@ -134,6 +134,37 @@ ndev setup
 
 ---
 
+## Quick Command Reference
+
+| Command | Action |
+|---|---|
+| `ndev ui` | Launch real-time Textual TUI dashboard (*aliases: `tui`, `dashboard`*) |
+| `ndev available` | List available PHP releases (`--archives` for legacy versions) |
+| `ndev install <ver>` | Install / compile a PHP version (`8.4`, `8.3`, `7.4`) |
+| `ndev use <ver>` | Switch active CLI PHP version on PATH |
+| `ndev current` | Show active CLI PHP version |
+| `ndev list` | List installed PHP versions and daemon / worker pool status |
+| `ndev start <target>` | Start service or pool (`all`, `nginx`, `mariadb`, `pma`, `mailpit`, `<ver>`) |
+| `ndev stop <target>` | Stop service or pool (`all`, `nginx`, `mariadb`, `pma`, `mailpit`, `<ver>`) |
+| `ndev restart <target>`| Restart service or pool (`all`, `nginx`, `mariadb`, `pma`, `mailpit`, `<ver>`) |
+| `ndev reload nginx` | Reload Nginx configuration without downtime |
+| `ndev status` | View real-time service status dashboard |
+| `ndev ctl` | Interactive terminal service control menu |
+| `ndev vhost` | Interactive virtual host creation wizard with local SSL |
+| `ndev vhost-list` | List all configured virtual hosts |
+| `ndev vhost-remove` | Remove virtual host and clean up hosts file |
+| `ndev db` | Interactive SQL database management wizard |
+| `ndev ext` | Manage PECL extensions (`list`, `install`, `enable`, `disable`) |
+| `ndev mailpit` | Manage local email sandbox (`install`, `start`, `stop`, `launch`, `open`) |
+| `ndev pma` | Manage phpMyAdmin background service (`http://127.0.0.1:8080`) |
+| `ndev grok` | Public HTTP tunneling for local virtual hosts via ngrok |
+| `ndev shell` | Interactive developer subshell pre-loaded with PHP/Composer/MySQL on PATH |
+| `ndev doctor` | Run environment diagnostics and health checks |
+| `ndev logs` | View and tail service and virtual host logs |
+| `ndev clean` | Clean up downloads cache and stale runtime state |
+
+---
+
 ## Usage Guide
 
 ### PHP Version Management
@@ -141,6 +172,7 @@ ndev setup
 ```bash
 # List available PHP versions from php.net / windows.php.net
 ndev available
+ndev available --archives    # include legacy releases
 
 # Install a PHP version (compiled on Linux, downloaded on Windows)
 ndev install 8.4
@@ -178,7 +210,11 @@ ndev start pma
 ndev start mailpit
 ndev start all
 
-# Reload Nginx configuration
+# Stop or restart all services
+ndev stop all
+ndev restart all
+
+# Reload Nginx configuration without downtime
 ndev reload nginx
 
 # View service status dashboard
@@ -412,3 +448,21 @@ ndev logs 8.4
 # Clean download cache and temporary files
 ndev clean
 ```
+
+---
+
+## Configuration
+
+### Linux
+* **Global Configuration**: `~/.ndev/config.toml`
+* **PHP Configuration (`php.ini`)**: `~/.ndev/php/<version>/etc/php.ini`
+* **Extension Configurations (`conf.d/`)**: `~/.ndev/php/<version>/etc/conf.d/<ext>.ini`
+* **PHP-FPM Server Configuration**: `~/.ndev/php/<version>/etc/php-fpm.conf`
+* **PHP-FPM Pool Configuration**: `~/.ndev/php/<version>/etc/php-fpm.d/www.conf`
+
+### Windows
+* **Global Configuration**: `%USERPROFILE%\.ndev\config.json`
+* **PHP Configuration (`php.ini`)**: `%USERPROFILE%\.ndev\php\<version>\php.ini`
+* **Nginx Configuration**: `%USERPROFILE%\.ndev\nginx\conf\nginx.conf`
+* **Virtual Host Configs**: `%USERPROFILE%\.ndev\nginx\conf\ndev-vhosts\*.conf`
+* **FastCGI Worker Pools**: Configurable base port (default: `13000`) and workers per version (default: `4`) in `config.json`.
