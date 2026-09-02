@@ -3,11 +3,15 @@ from ndev.constants import CURRENT_LINK
 from ndev.runtime.fpm import start_fpm
 from ndev.logger import logger
 
-def start_cmd(target: str = typer.Argument(None, help="PHP version or service (e.g. 8.4, pma) to start")):
-    """Start PHP-FPM for a version or a service like phpmyadmin (pma)."""
+def start_cmd(target: str = typer.Argument(None, help="PHP version or service (e.g. 8.4, pma, mailpit) to start")):
+    """Start PHP-FPM for a version or a service like phpmyadmin (pma) or mailpit."""
     if target and target.lower() in ["pma", "phpmyadmin"]:
         from ndev.runtime.pma import start_pma
         start_pma()
+        return
+    if target and target.lower() in ["mailpit", "mail"]:
+        from ndev.runtime.mailpit import start_mailpit
+        start_mailpit()
         return
     from ndev.utils import get_version_or_prompt
     try:
@@ -15,6 +19,10 @@ def start_cmd(target: str = typer.Argument(None, help="PHP version or service (e
         if version and version.lower() in ["pma", "phpmyadmin"]:
             from ndev.runtime.pma import start_pma
             start_pma()
+            return
+        if version and version.lower() in ["mailpit", "mail"]:
+            from ndev.runtime.mailpit import start_mailpit
+            start_mailpit()
             return
         if not version:
             logger.error("No version or service specified.")

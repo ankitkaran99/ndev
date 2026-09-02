@@ -197,3 +197,50 @@ ndev status pma
 ndev stop pma
 ndev restart pma
 ```
+
+#### 6. Local Email Sandbox (`mailpit`)
+Catch every outgoing e-mail your local app sends without hitting real inboxes, using [Mailpit](https://github.com/axllent/mailpit) — a fast, prebuilt zero-dependency binary with a modern web UI:
+
+```bash
+# Install prebuilt binary from GitHub releases
+ndev mailpit install
+
+# Start Mailpit service in background
+ndev mailpit start
+ndev start mailpit
+
+# Open Mailpit Web UI in default browser
+ndev mailpit launch
+ndev mailpit open
+
+# Check status
+ndev mailpit status
+ndev status mailpit
+
+# Stop or restart
+ndev mailpit stop
+ndev stop mailpit
+ndev mailpit restart
+```
+
+* **Web UI**: [http://127.0.0.1:8025](http://127.0.0.1:8025)
+* **SMTP Server**: `127.0.0.1:1025` (point Laravel, WordPress, or Symfony here)
+
+---
+
+### Interactive Terminal UI Dashboard (`ui` / `dashboard`)
+
+Launch the modern, responsive Textual TUI dashboard for real-time monitoring and process control:
+
+```bash
+ndev ui
+# Aliases: ndev tui, ndev dashboard
+```
+
+* **Live Status Dashboard**: Real-time health, PIDs, sockets, and listening ports for Nginx, MariaDB, phpMyAdmin, Mailpit, and all PHP-FPM daemons.
+* **Quick Batch Actions**: One-click **Start All**, **Stop All**, **Restart All**, and **Reload Nginx**.
+* **On-the-fly CLI PHP Switcher**: Change globally active CLI PHP version instantly via dropdown.
+* **Integrated Log Tail Viewer**: Select and inspect live tails for Nginx, MariaDB, PHP, and Virtual Host logs.
+* **Virtual Host Navigator**: View local vhost mappings, docroots, SSL status, and open sites directly in your default browser.
+* **Asynchronous & Non-Blocking**: Built with Textual workers — all background actions and I/O polling run smoothly without freezing the UI.
+

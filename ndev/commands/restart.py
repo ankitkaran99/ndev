@@ -3,11 +3,15 @@ from ndev.constants import CURRENT_LINK
 from ndev.runtime.fpm import restart_fpm
 from ndev.logger import logger
 
-def restart_cmd(target: str = typer.Argument(None, help="PHP version or service (e.g. 8.4, pma) to restart")):
-    """Restart PHP-FPM for a version or a service like phpmyadmin (pma)."""
+def restart_cmd(target: str = typer.Argument(None, help="PHP version or service (e.g. 8.4, pma, mailpit) to restart")):
+    """Restart PHP-FPM for a version or a service like phpmyadmin (pma) or mailpit."""
     if target and target.lower() in ["pma", "phpmyadmin"]:
         from ndev.runtime.pma import restart_pma
         restart_pma()
+        return
+    if target and target.lower() in ["mailpit", "mail"]:
+        from ndev.runtime.mailpit import restart_mailpit
+        restart_mailpit()
         return
     from ndev.utils import get_version_or_prompt
     try:
@@ -15,6 +19,10 @@ def restart_cmd(target: str = typer.Argument(None, help="PHP version or service 
         if version and version.lower() in ["pma", "phpmyadmin"]:
             from ndev.runtime.pma import restart_pma
             restart_pma()
+            return
+        if version and version.lower() in ["mailpit", "mail"]:
+            from ndev.runtime.mailpit import restart_mailpit
+            restart_mailpit()
             return
         if not version:
             logger.error("No version or service specified.")

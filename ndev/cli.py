@@ -74,6 +74,27 @@ app.command("setup")(setup_cmd)
 from ndev.commands.db import db_app
 app.add_typer(db_app, name="db")
 
+from ndev.commands.mailpit import mailpit_app
+app.add_typer(mailpit_app, name="mailpit")
+
+@app.command("ui")
+def ui_cmd():
+    """Launch the interactive Textual TUI dashboard."""
+    from ndev.tui import run_dashboard
+    run_dashboard()
+
+@app.command("tui", hidden=True)
+def tui_cmd():
+    """Alias for ui."""
+    from ndev.tui import run_dashboard
+    run_dashboard()
+
+@app.command("dashboard", hidden=True)
+def dashboard_cmd():
+    """Alias for ui."""
+    from ndev.tui import run_dashboard
+    run_dashboard()
+
 @app.command("shell")
 def shell():
     """Enter the interactive bubblewrap build environment shell."""

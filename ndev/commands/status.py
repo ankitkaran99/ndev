@@ -7,8 +7,8 @@ from ndev.logger import logger
 
 console = Console()
 
-def status_cmd(target: str = typer.Argument(None, help="PHP version or service (e.g. 8.4, pma) to check status for")):
-    """Check status of a PHP-FPM version or service like pma."""
+def status_cmd(target: str = typer.Argument(None, help="PHP version or service (e.g. 8.4, pma, mailpit) to check status for")):
+    """Check status of a PHP-FPM version or service like pma or mailpit."""
     if target and target.lower() in ["pma", "phpmyadmin"]:
         from ndev.runtime.pma import get_pma_status
         status = get_pma_status()
@@ -22,6 +22,22 @@ def status_cmd(target: str = typer.Argument(None, help="PHP version or service (
         table.add_row("PID", str(status["pid"]) if status["pid"] else "N/A")
         table.add_row("Port", str(status["port"]) if status["port"] else "N/A")
         table.add_row("URL", status["url"] if status["url"] else "N/A")
+        console.print(table)
+        return
+
+    if target and target.lower() in ["mailpit", "mail"]:
+        from ndev.runtime.mailpit import get_mailpit_status
+        status = get_mailpit_status()
+        table = Table(title="Mailpit Service Status")
+        table.add_column("Property", style="bold cyan")
+        table.add_column("Value")
+
+        status_text = "[bold green]Running[/bold green]" if status["running"] else "[bold red]Stopped[/bold red]"
+        table.add_row("Service", "Mailpit")
+        table.add_row("Status", status_text)
+        table.add_row("PID", str(status["pid"]) if status["pid"] else "N/A")
+        table.add_row("SMTP Server", f"127.0.0.1:{status['smtp_port']}")
+        table.add_row("Web UI URL", status["url"] if status["url"] else f"http://127.0.0.1:{status['web_port']} (Stopped)")
         console.print(table)
         return
 
