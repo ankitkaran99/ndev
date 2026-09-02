@@ -162,6 +162,8 @@ ndev setup
 | `ndev mailpit` | Manage local email sandbox (`install`, `start`, `stop`, `launch`, `open`) |
 | `ndev pma` | Manage phpMyAdmin background service (`http://127.0.0.1:8080`) |
 | `ndev grok` | Public HTTP tunneling for local virtual hosts via ngrok |
+| `ndev upgrade` | Check for and upgrade stack components (Nginx, Mailpit, MariaDB, PMA, mkcert, Composer) |
+| `ndev upgrade --check` | Check component versions against upstream releases without upgrading |
 | `ndev shell` | Interactive developer subshell pre-loaded with PHP/Composer/MySQL on PATH |
 | `ndev doctor` | Run environment diagnostics and health checks |
 | `ndev logs` | View and tail service and virtual host logs |

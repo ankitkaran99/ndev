@@ -71,6 +71,9 @@ app.command("ctl")(ctl_cmd)
 from ndev.commands.setup import setup_cmd
 app.command("setup")(setup_cmd)
 
+from ndev.commands.upgrade import app as upgrade_app
+app.add_typer(upgrade_app, name="upgrade")
+
 from ndev.commands.db import db_app
 app.add_typer(db_app, name="db")
 

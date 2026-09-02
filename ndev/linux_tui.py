@@ -36,6 +36,7 @@ from ndev.constants import NDEV_DIR, PHP_DIR, CURRENT_LINK, RUN_DIR, LOGS_DIR
 from ndev.runtime.fpm import get_fpm_status, start_fpm, stop_fpm, restart_fpm
 from ndev.runtime.pma import get_pma_status, start_pma, stop_pma, restart_pma
 from ndev.runtime.mailpit import get_mailpit_status, start_mailpit, stop_mailpit, restart_mailpit, is_installed as is_mailpit_installed
+from ndev.runtime import upgrade as upgrade_core
 
 
 # ── CSS STYLESHEET ────────────────────────────────────────────────────────────
@@ -147,6 +148,8 @@ class NdevDashboard(App):
         Binding("x", "stop_all", "Stop All"),
         Binding("t", "restart_all", "Restart All"),
         Binding("l", "reload_nginx", "Reload Nginx"),
+        Binding("u", "check_upgrades", "Check Upgrades"),
+        Binding("U", "upgrade_stack", "Upgrade Stack"),
     ]
 
     def __init__(self) -> None:
@@ -168,6 +171,8 @@ class NdevDashboard(App):
                     yield Button("⏹ Stop All", id="btn-stop-all", variant="error", classes="sidebar-btn")
                     yield Button("🔄 Restart All", id="btn-restart-all", variant="warning", classes="sidebar-btn")
                     yield Button("⚡ Reload Nginx", id="btn-reload-nginx", variant="primary", classes="sidebar-btn")
+                    yield Button("🔍 Check Upgrades", id="btn-check-upgrades", variant="default", classes="sidebar-btn")
+                    yield Button("🚀 Upgrade Stack", id="btn-upgrade-stack", variant="primary", classes="sidebar-btn")
 
                 with Vertical(classes="sidebar-section"):
                     yield Label("🐘 Active PHP CLI", classes="section-title")
@@ -196,6 +201,7 @@ class NdevDashboard(App):
                             yield Button("Stop Selected", id="btn-svc-stop", variant="error")
                             yield Button("Restart Selected", id="btn-svc-restart", variant="warning")
                             yield Button("Open Web UI", id="btn-svc-open", variant="primary")
+                            yield Button("Check Upgrades", id="btn-svc-check-upgrades", variant="default")
 
                     with TabPane("🌐 Virtual Hosts", id="tab-vhosts"):
                         yield DataTable(id="table-vhosts", cursor_type="row", zebra_stripes=True)
@@ -650,10 +656,76 @@ class NdevDashboard(App):
             self.log_message(f"[bold red]✗ Failed to reload Nginx: {e}[/bold red]")
             self.notify(f"Nginx reload failed: {e}", severity="error")
 
-    def action_refresh_all(self) -> None:
-        """User-triggered full refresh."""
-        self.log_message("[dim]Refreshing dashboard data...[/dim]")
-        self._refresh_all_data(full_rebuild=True)
+    @work(exclusive=True)
+    async def action_check_upgrades(self) -> None:
+        """Query upstream releases and display version check results in the console."""
+        self.query_one(TabbedContent).active = "tab-logs"
+        self.log_message("[bold cyan]═══════════════════════════════════════════════════[/bold cyan]")
+        self.log_message("[bold cyan]🔍 Checking for Stack Component Updates...[/bold cyan]")
+        self.log_message("[bold cyan]═══════════════════════════════════════════════════[/bold cyan]")
+        self.notify("Checking component versions...", severity="information")
+
+        try:
+            infos = await asyncio.to_thread(upgrade_core.check_all)
+            upgradable = []
+            for info in infos:
+                curr_str = info.current_version or "[dim]Not installed[/dim]"
+                latest_str = info.latest_version or "[dim]Unknown[/dim]"
+                if not info.installed:
+                    self.log_message(f"• [yellow]{info.display_name:<28}[/yellow] [dim]Not Installed[/dim] (Latest: {latest_str})")
+                elif info.update_available:
+                    self.log_message(f"• [bold green]{info.display_name:<28}[/bold green] [yellow]{curr_str}[/yellow] -> [bold green]{latest_str}[/bold green] [bold yellow](UPDATE AVAILABLE)[/bold yellow]")
+                    upgradable.append(info)
+                else:
+                    self.log_message(f"• [bold green]{info.display_name:<28}[/bold green] [dim]{curr_str}[/dim] [green]✓ Up-to-date[/green]")
+
+            if upgradable:
+                names = ", ".join([c.display_name for c in upgradable])
+                self.log_message(f"\n[bold yellow]⚡ {len(upgradable)} component(s) can be upgraded: {names}[/bold yellow]")
+                self.log_message("[dim]Click 'Upgrade Stack' in the sidebar or press Shift+U to install updates.[/dim]")
+                self.notify(f"{len(upgradable)} updates available: {names}", severity="warning")
+            else:
+                self.log_message("\n[bold green]✓ All installed stack components are up-to-date![/bold green]")
+                self.notify("All stack components are up-to-date.", severity="information")
+        except Exception as e:
+            self.log_message(f"[bold red]✗ Failed to check upgrades: {e}[/bold red]")
+            self.notify(f"Check failed: {e}", severity="error")
+
+    @work(exclusive=True)
+    async def action_upgrade_stack(self) -> None:
+        """Check for and upgrade all stack components needing updates."""
+        self.query_one(TabbedContent).active = "tab-logs"
+        self.log_message("[bold blue]═══════════════════════════════════════════════════[/bold blue]")
+        self.log_message("[bold blue]🚀 Starting Stack Component Upgrade Process...[/bold blue]")
+        self.log_message("[bold blue]═══════════════════════════════════════════════════[/bold blue]")
+        self.notify("Scanning stack components for upgrades...", severity="information")
+
+        try:
+            infos = await asyncio.to_thread(upgrade_core.check_all)
+            upgradable = [c for c in infos if c.update_available]
+            if not upgradable:
+                self.log_message("[bold green]✓ All installed stack components are already up-to-date![/bold green]")
+                self.notify("All components are up-to-date.", severity="information")
+                return
+
+            self.log_message(f"[bold cyan]Upgrading {len(upgradable)} component(s)...[/bold cyan]")
+            for c in upgradable:
+                self.log_message(f"[bold blue]• Upgrading {c.display_name} ({c.current_version} -> {c.latest_version})...[/bold blue]")
+                ok, msg = await asyncio.to_thread(upgrade_core.upgrade_component, c.name)
+                if ok:
+                    self.log_message(f"[bold green]  ✓ {msg}[/bold green]")
+                    self.notify(f"{c.display_name} upgraded!", severity="information")
+                else:
+                    self.log_message(f"[bold red]  ✗ {msg}[/bold red]")
+                    self.notify(f"{c.display_name} upgrade failed", severity="error")
+
+            self.log_message("[bold green]═══════════════════════════════════════════════════[/bold green]")
+            self.log_message("[bold green]✓ Upgrade process completed![/bold green]")
+            self.log_message("[bold green]═══════════════════════════════════════════════════[/bold green]")
+            self._refresh_all_data(full_rebuild=True)
+        except Exception as e:
+            self.log_message(f"[bold red]✗ Upgrade process failed: {e}[/bold red]")
+            self.notify(f"Upgrade failed: {e}", severity="error")
 
     # ── BUTTON AND EVENT HANDLERS ─────────────────────────────────────────────
  
@@ -668,6 +740,10 @@ class NdevDashboard(App):
             self.action_restart_all()
         elif btn_id == "btn-reload-nginx":
             self.action_reload_nginx()
+        elif btn_id in ["btn-check-upgrades", "btn-svc-check-upgrades"]:
+            self.action_check_upgrades()
+        elif btn_id == "btn-upgrade-stack":
+            self.action_upgrade_stack()
         elif btn_id == "btn-tail-log":
             self._handle_tail_log()
         elif btn_id == "btn-clear-console":

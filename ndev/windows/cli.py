@@ -33,6 +33,7 @@ from .core import (
     pma as pma_core,
     services,
     setup as setup_core,
+    upgrade as upgrade_core,
     vhost as vhost_core,
 )
 from .core.elevate import is_admin
@@ -1825,6 +1826,72 @@ def setup(nginx, mariadb, mkcert, ngrok, composer, cacert, nginx_version, mariad
     shim_on_path = str(paths.SHIM_DIR).lower() in os.environ.get("PATH", "").lower()
     if not shim_on_path:
         console.print(f"\n[bold yellow]Important:[/bold yellow] Add [bold cyan]{paths.SHIM_DIR}[/bold cyan] to your system PATH.")
+
+
+# ---- Component Upgrade (upgrade) --------------------------------------------
+
+@main.command()
+@click.argument("component", required=False, default=None)
+@click.option("--check", is_flag=True, default=False, help="Only check for updates without applying upgrades.")
+def upgrade(component: Optional[str], check: bool):
+    """Check for and upgrade stack components (Nginx, Mailpit, MariaDB, PMA, mkcert, Composer)."""
+    console.print("\n[bold blue]ndev Stack Component Updates & Upgrades[/bold blue]")
+
+    with console.status("[bold green]Checking component versions...[/bold green]"):
+        if component and component.lower() != "all":
+            all_infos = [upgrade_core.check_all()]
+            # Filter matching component
+            infos = [info for info in upgrade_core.check_all() if info.name == component.lower() or component.lower() in info.name]
+            if not infos:
+                raise click.ClickException(f"Unknown component '{component}'. Available: {', '.join(upgrade_core.COMPONENTS)}")
+        else:
+            infos = upgrade_core.check_all()
+
+    table = Table(title="Stack Components Version Status", show_header=True, header_style="bold cyan")
+    table.add_column("Component", style="bold", min_width=20)
+    table.add_column("Installed Version", min_width=18)
+    table.add_column("Latest Version", min_width=18)
+    table.add_column("Status", min_width=22)
+
+    upgradable = []
+    for info in infos:
+        curr_str = info.current_version or "[dim]Not installed[/dim]"
+        latest_str = info.latest_version or "[dim]Unknown[/dim]"
+        if not info.installed:
+            st_str = "[yellow]Not Installed[/yellow]"
+        elif info.update_available:
+            st_str = "[bold green]Update Available[/bold green]"
+            upgradable.append(info)
+        else:
+            st_str = "[green]Up-to-date[/green]"
+
+        table.add_row(info.display_name, curr_str, latest_str, st_str)
+
+    console.print(table)
+
+    if check:
+        if upgradable:
+            console.print(f"\n[bold green]{len(upgradable)} component(s) can be upgraded.[/bold green] Run `ndev upgrade` to apply.")
+        else:
+            console.print("\n[bold green]All installed components are up-to-date![/bold green]")
+        return
+
+    if not upgradable and not component:
+        console.print("\n[bold green]All installed components are up-to-date![/bold green]")
+        return
+
+    targets = [c.name for c in upgradable] if not component or component.lower() == "all" else [component.lower()]
+    console.print(f"\n[bold blue]Upgrading {len(targets)} component(s): {', '.join(targets)}...[/bold blue]\n")
+
+    for target in targets:
+        with console.status(f"[bold green]Upgrading {target}...[/bold green]"):
+            ok, msg = upgrade_core.upgrade_component(target)
+        if ok:
+            console.print(f"[bold green]✓ {msg}[/bold green]")
+        else:
+            console.print(f"[bold red]✗ {msg}[/bold red]")
+
+    console.print("\n[bold green]Upgrade process complete![/bold green]")
 
 
 if __name__ == "__main__":
