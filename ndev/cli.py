@@ -20,12 +20,15 @@ if sys.platform == "win32":
 
 def main() -> None:
     """Main CLI entrypoint for ndev."""
-    if platform.system() == "Windows":
-        from ndev.windows.cli import main as win_main
-        win_main()
-    else:
-        from ndev.linux_cli import app as linux_app
-        linux_app()
+    try:
+        if platform.system() == "Windows":
+            from ndev.windows.cli import main as win_main
+            win_main()
+        else:
+            from ndev.linux_cli import app as linux_app
+            linux_app()
+    except KeyboardInterrupt:
+        sys.exit(130)
 
 
 # Compatibility aliases for direct imports or runners

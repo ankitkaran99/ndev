@@ -12,7 +12,7 @@ so commands that need admin rights either:
      step (e.g. writing to the hosts file), keeping the rest of the
      command running unprivileged.
 
-Option 2 is used for hosts / vhost so the bulk of ndev-win
+Option 2 is used for hosts / vhost so the bulk of ndev
 never needs to run elevated.
 """
 from __future__ import annotations
