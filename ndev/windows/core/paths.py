@@ -28,6 +28,7 @@ CURRENT_FILE = NDEV_HOME / "current"        # active PHP version, plain text
 SHIM_DIR = NDEV_HOME / "shims"              # php.exe / php-cgi.exe shims for PATH
 TEMP_DIR = NDEV_HOME / "temp"                # temporary files and fastcgi temp buffers
 SESSIONS_DIR = TEMP_DIR / "sessions"         # PHP isolated session storage
+BACKUPS_DIR = NDEV_HOME / "backups"          # automatic snapshots before upgrades
 
 HOSTS_PATH = Path(r"C:\Windows\System32\drivers\etc\hosts")
 
@@ -42,7 +43,7 @@ DEFAULT_CONFIG = {
 def ensure_dirs() -> None:
     for d in (PHP_DIR, DOWNLOADS_DIR, RUN_DIR, CERTS_DIR, NGINX_CONF_D,
               NGINX_LOGS_DIR, MARIADB_DIR, PMA_DIR, TEMPLATES_DIR, SHIM_DIR,
-              TEMP_DIR, SESSIONS_DIR):
+              TEMP_DIR, SESSIONS_DIR, BACKUPS_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
 

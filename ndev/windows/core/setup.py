@@ -50,10 +50,16 @@ def _download(url: str, dest: Path) -> Path:
     return dest
 
 
-def _extract_zip_flatten_single_root(zip_path: Path, target: Path) -> None:
-    if target.exists():
-        shutil.rmtree(target)
-    target.mkdir(parents=True)
+def _overlay_zip_flatten_single_root(
+    zip_path: Path,
+    target: Path,
+    preserve_dirs: Optional[list[str]] = None,
+    preserve_files: Optional[list[str]] = None,
+) -> None:
+    preserve_dirs = preserve_dirs or []
+    preserve_files = preserve_files or []
+    paths.ensure_dirs()
+    target.mkdir(parents=True, exist_ok=True)
 
     extract_tmp = paths.DOWNLOADS_DIR / f"_extract_{target.name}"
     if extract_tmp.exists():
@@ -64,12 +70,22 @@ def _extract_zip_flatten_single_root(zip_path: Path, target: Path) -> None:
 
     inner_dirs = [d for d in extract_tmp.iterdir() if d.is_dir()]
     inner_files = [f for f in extract_tmp.iterdir() if f.is_file()]
-    if len(inner_dirs) == 1 and not inner_files:
-        for item in inner_dirs[0].iterdir():
-            shutil.move(str(item), str(target / item.name))
-    else:
-        for item in extract_tmp.iterdir():
-            shutil.move(str(item), str(target / item.name))
+    root_src = inner_dirs[0] if (len(inner_dirs) == 1 and not inner_files) else extract_tmp
+
+    for item in root_src.iterdir():
+        dest = target / item.name
+        if item.is_dir():
+            # If directory is in preserve list and already contains user files, DO NOT wipe it!
+            if item.name in preserve_dirs and dest.exists() and any(dest.iterdir()):
+                continue
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(item, dest)
+        elif item.is_file():
+            # If file is in preserve list and already exists, DO NOT overwrite it!
+            if item.name in preserve_files and dest.exists() and dest.stat().st_size > 0:
+                continue
+            shutil.copy2(item, dest)
 
     shutil.rmtree(extract_tmp, ignore_errors=True)
 
@@ -79,7 +95,14 @@ def _extract_zip_flatten_single_root(zip_path: Path, target: Path) -> None:
 def install_nginx(version: str = DEFAULT_NGINX_VERSION) -> Path:
     url = f"https://nginx.org/download/nginx-{version}.zip"
     zip_path = _download(url, paths.DOWNLOADS_DIR / f"nginx-{version}.zip")
-    _extract_zip_flatten_single_root(zip_path, paths.NGINX_DIR)
+    
+    # Non-destructively overlay binaries while preserving conf/ (ndev-vhosts) and logs/
+    _overlay_zip_flatten_single_root(
+        zip_path,
+        paths.NGINX_DIR,
+        preserve_dirs=["conf", "logs", "temp"],
+        preserve_files=["nginx.conf"],
+    )
     
     paths.NGINX_CONF_D.mkdir(parents=True, exist_ok=True)
     paths.NGINX_LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -130,7 +153,14 @@ def _include_vhosts_in_main_conf() -> None:
 def install_mariadb(version: str = DEFAULT_MARIADB_VERSION) -> Path:
     url = f"https://archive.mariadb.org/mariadb-{version}/winx64-packages/mariadb-{version}-winx64.zip"
     zip_path = _download(url, paths.DOWNLOADS_DIR / f"mariadb-{version}-winx64.zip")
-    _extract_zip_flatten_single_root(zip_path, paths.MARIADB_DIR)
+    
+    # Non-destructively overlay binaries while preserving data/ and my.ini
+    _overlay_zip_flatten_single_root(
+        zip_path,
+        paths.MARIADB_DIR,
+        preserve_dirs=["data"],
+        preserve_files=["my.ini"],
+    )
     _init_mariadb_data_dir()
     _create_mariadb_shims()
     return paths.MARIADB_DIR

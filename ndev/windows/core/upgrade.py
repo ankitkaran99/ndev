@@ -105,36 +105,24 @@ def upgrade_nginx() -> tuple[bool, str]:
     info = get_nginx_info()
     target_ver = info.latest_version or setup_core.DEFAULT_NGINX_VERSION
 
-    # Backup existing configuration
-    conf_backup = None
+    # 1. Create a persistent safety backup of conf/
     conf_dir = paths.NGINX_DIR / "conf"
-    if conf_dir.exists():
-        conf_backup = paths.DOWNLOADS_DIR / "_nginx_conf_backup"
-        if conf_backup.exists():
-            shutil.rmtree(conf_backup)
-        shutil.copytree(conf_dir, conf_backup)
+    if conf_dir.exists() and any(conf_dir.iterdir()):
+        import datetime
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dest = paths.BACKUPS_DIR / f"nginx_conf_{ts}"
+        try:
+            shutil.copytree(conf_dir, backup_dest)
+        except Exception:
+            pass
 
     try:
-        url = f"https://nginx.org/download/nginx-{target_ver}.zip"
-        zip_path = setup_core._download(url, paths.DOWNLOADS_DIR / f"nginx-{target_ver}.zip")
-        setup_core._extract_zip_flatten_single_root(zip_path, paths.NGINX_DIR)
-
-        # Restore configuration and vhosts
-        if conf_backup and conf_backup.exists():
-            if (conf_backup / "nginx.conf").exists():
-                shutil.copy(conf_backup / "nginx.conf", conf_dir / "nginx.conf")
-            if (conf_backup / "ndev-vhosts").exists():
-                if (conf_dir / "ndev-vhosts").exists():
-                    shutil.rmtree(conf_dir / "ndev-vhosts")
-                shutil.copytree(conf_backup / "ndev-vhosts", conf_dir / "ndev-vhosts")
-            shutil.rmtree(conf_backup, ignore_errors=True)
-
-        setup_core._include_vhosts_in_main_conf()
+        setup_core.install_nginx(version=target_ver)
 
         if was_running:
             services.nginx_start()
 
-        return True, f"Nginx upgraded successfully to {target_ver}."
+        return True, f"Nginx upgraded successfully to {target_ver} (configuration preserved)."
     except Exception as e:
         if was_running:
             try:
@@ -276,48 +264,28 @@ def upgrade_mariadb() -> tuple[bool, str]:
     info = get_mariadb_info()
     target_ver = info.latest_version or setup_core.DEFAULT_MARIADB_VERSION
 
-    # Preserve data/ directory and my.ini
+    # 1. Create a persistent safety snapshot backup of data/ and my.ini
     data_dir = paths.MARIADB_DIR / "data"
     my_ini = paths.MARIADB_DIR / "my.ini"
-
-    data_backup = None
-    ini_backup = None
-
     if data_dir.exists() and any(data_dir.iterdir()):
-        data_backup = paths.DOWNLOADS_DIR / "_mariadb_data_backup"
-        if data_backup.exists():
-            shutil.rmtree(data_backup)
-        shutil.copytree(data_dir, data_backup)
-
-    if my_ini.exists():
-        ini_backup = paths.DOWNLOADS_DIR / "_mariadb_my_ini.bak"
-        shutil.copy(my_ini, ini_backup)
+        import datetime
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dest = paths.BACKUPS_DIR / f"mariadb_backup_{ts}"
+        try:
+            backup_dest.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(data_dir, backup_dest / "data")
+            if my_ini.exists():
+                shutil.copy2(my_ini, backup_dest / "my.ini")
+        except Exception:
+            pass
 
     try:
-        url = f"https://archive.mariadb.org/mariadb-{target_ver}/winx64-packages/mariadb-{target_ver}-winx64.zip"
-        zip_path = setup_core._download(url, paths.DOWNLOADS_DIR / f"mariadb-{target_ver}-winx64.zip")
-        setup_core._extract_zip_flatten_single_root(zip_path, paths.MARIADB_DIR)
-
-        # Restore data directory and my.ini
-        if data_backup and data_backup.exists():
-            target_data = paths.MARIADB_DIR / "data"
-            if target_data.exists():
-                shutil.rmtree(target_data)
-            shutil.copytree(data_backup, target_data)
-            shutil.rmtree(data_backup, ignore_errors=True)
-
-        if ini_backup and ini_backup.exists():
-            shutil.copy(ini_backup, paths.MARIADB_DIR / "my.ini")
-            ini_backup.unlink(missing_ok=True)
-        else:
-            setup_core._init_mariadb_data_dir()
-
-        setup_core._create_mariadb_shims()
+        setup_core.install_mariadb(version=target_ver)
 
         if was_running:
             services.mariadb_start()
 
-        return True, f"MariaDB upgraded successfully to {target_ver}."
+        return True, f"MariaDB upgraded successfully to {target_ver} (database and configuration preserved)."
     except Exception as e:
         if was_running:
             try:
@@ -347,7 +315,7 @@ def get_pma_info() -> ComponentInfo:
     except Exception as e:
         latest_ver = pma_core.DEFAULT_VERSION
         if not err:
-            err = f"Could not query phpMyAdmin version API: {e}"
+            err = f"Could not query PMA version API: {e}"
 
     update_avail = False
     if curr_ver and latest_ver and _clean_ver(curr_ver) != _clean_ver(latest_ver):
@@ -370,30 +338,34 @@ def upgrade_pma() -> tuple[bool, str]:
     info = get_pma_info()
     target_ver = info.latest_version or pma_core.DEFAULT_VERSION
 
-    # Preserve config.inc.php
+    # 1. Create safety backup of config.inc.php
     config_inc = paths.PMA_DIR / "config.inc.php"
     config_backup = None
     if config_inc.exists():
-        config_backup = paths.DOWNLOADS_DIR / "_pma_config.inc.php.bak"
-        shutil.copy(config_inc, config_backup)
+        import datetime
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        config_backup = paths.BACKUPS_DIR / f"pma_config_{ts}.inc.php"
+        try:
+            shutil.copy2(config_inc, config_backup)
+        except Exception:
+            pass
 
     try:
         pma_core.install(version=target_ver)
         if config_backup and config_backup.exists():
-            shutil.copy(config_backup, paths.PMA_DIR / "config.inc.php")
-            config_backup.unlink(missing_ok=True)
+            shutil.copy2(config_backup, paths.PMA_DIR / "config.inc.php")
 
         if was_running:
             pma_core.start()
 
-        return True, f"phpMyAdmin upgraded successfully to {target_ver}."
+        return True, f"PMA upgraded successfully to {target_ver} (configuration preserved)."
     except Exception as e:
         if was_running:
             try:
                 pma_core.start()
             except Exception:
                 pass
-        return False, f"phpMyAdmin upgrade failed: {e}"
+        return False, f"PMA upgrade failed: {e}"
 
 
 # 5. MKCERT
