@@ -8,6 +8,15 @@ from __future__ import annotations
 import platform
 import sys
 
+# Ensure UTF-8 output on Windows consoles to prevent glyph corruption
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 
 def main() -> None:
     """Main CLI entrypoint for ndev."""

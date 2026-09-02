@@ -12,6 +12,14 @@ import click
 from rich.console import Console
 from rich.table import Table
 
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 from .core import (
     db as db_core,
     ext as ext_core,
@@ -439,7 +447,7 @@ def start(target):
             console.print(f"[yellow]Mailpit is already running at {st.get('url', 'http://127.0.0.1:8025')} (PID {st.get('pid')})[/yellow]")
             return
         if not mailpit_core.is_installed():
-            console.print("[yellow]Mailpit not installed — downloading now...[/yellow]")
+            console.print("[yellow]Mailpit not installed - downloading now...[/yellow]")
             with console.status("[bold green]Downloading Mailpit...[/bold green]"):
                 mailpit_core.install()
         pid = mailpit_core.start()
@@ -1553,11 +1561,11 @@ def pma_status():
         console.print("[bold red]Stopped.[/bold red]")
 
 
-# ---- Mailpit — local email sandbox (mailpit) --------------------------------
+# ---- Mailpit - local email sandbox (mailpit) --------------------------------
 
 @main.group()
 def mailpit():
-    """Manage Mailpit — local email sandbox & SMTP catcher.
+    """Manage Mailpit - local email sandbox & SMTP catcher.
 
     \b
     Mailpit catches every e-mail your app sends locally so you can
@@ -1565,8 +1573,8 @@ def mailpit():
 
     \b
     After starting:
-      SMTP server  →  127.0.0.1:1025  (point your app here)
-      Web UI       →  http://127.0.0.1:8025  (browse caught mail)
+      SMTP server  ->  127.0.0.1:1025  (point your app here)
+      Web UI       ->  http://127.0.0.1:8025  (browse caught mail)
     """
 
 
@@ -1578,7 +1586,7 @@ def mailpit_install():
             path = mailpit_core.install()
         except Exception as e:
             raise click.ClickException(str(e))
-    console.print(f"[bold green]✓ Mailpit installed[/bold green] → {path}")
+    console.print(f"[bold green]Mailpit installed[/bold green] -> {path}")
 
 
 @mailpit.command(name="start")
@@ -1589,7 +1597,7 @@ def mailpit_install():
 def mailpit_start(smtp_port, web_port):
     """Start Mailpit email sandbox in the background."""
     if not mailpit_core.is_installed():
-        console.print("[yellow]Mailpit not installed — downloading now...[/yellow]")
+        console.print("[yellow]Mailpit not installed - downloading now...[/yellow]")
         with console.status("[bold green]Downloading Mailpit...[/bold green]"):
             try:
                 mailpit_core.install()
@@ -1608,9 +1616,9 @@ def mailpit_start(smtp_port, web_port):
     except Exception as e:
         raise click.ClickException(str(e))
 
-    console.print(f"[bold green]✓ Mailpit started (PID {pid})[/bold green]")
-    console.print(f"  Web UI  → [bold cyan]http://127.0.0.1:{web_port}[/bold cyan]")
-    console.print(f"  SMTP    → [bold cyan]127.0.0.1:{smtp_port}[/bold cyan]")
+    console.print(f"[bold green]Mailpit started (PID {pid})[/bold green]")
+    console.print(f"  Web UI  -> [bold cyan]http://127.0.0.1:{web_port}[/bold cyan]")
+    console.print(f"  SMTP    -> [bold cyan]127.0.0.1:{smtp_port}[/bold cyan]")
 
 
 @mailpit.command(name="stop")
@@ -1624,7 +1632,7 @@ def mailpit_stop():
         mailpit_core.stop()
     except Exception as e:
         raise click.ClickException(str(e))
-    console.print("[bold green]✓ Mailpit stopped.[/bold green]")
+    console.print("[bold green]Mailpit stopped.[/bold green]")
 
 
 @mailpit.command(name="restart")
@@ -1638,9 +1646,9 @@ def mailpit_restart(smtp_port, web_port):
         pid = mailpit_core.restart(smtp_port=smtp_port, web_port=web_port)
     except Exception as e:
         raise click.ClickException(str(e))
-    console.print(f"[bold green]✓ Mailpit restarted (PID {pid})[/bold green]")
-    console.print(f"  Web UI  → [bold cyan]http://127.0.0.1:{web_port}[/bold cyan]")
-    console.print(f"  SMTP    → [bold cyan]127.0.0.1:{smtp_port}[/bold cyan]")
+    console.print(f"[bold green]Mailpit restarted (PID {pid})[/bold green]")
+    console.print(f"  Web UI  -> [bold cyan]http://127.0.0.1:{web_port}[/bold cyan]")
+    console.print(f"  SMTP    -> [bold cyan]127.0.0.1:{smtp_port}[/bold cyan]")
 
 
 @mailpit.command(name="status")
@@ -1648,11 +1656,11 @@ def mailpit_status():
     """Show Mailpit status."""
     st = mailpit_core.status()
     if st:
-        console.print(f"[bold green]Running[/bold green]  Web UI → {st['url']}  |  SMTP → {st['smtp']}  |  PID {st['pid']}")
+        console.print(f"[bold green]Running[/bold green]  Web UI -> {st['url']}  |  SMTP -> {st['smtp']}  |  PID {st['pid']}")
     else:
         console.print("[bold red]Stopped.[/bold red]")
         if not mailpit_core.is_installed():
-            console.print("[yellow]  (not installed — run `ndev mailpit install`)[/yellow]")
+            console.print("[yellow]  (not installed - run `ndev mailpit install`)[/yellow]")
 
 
 @mailpit.command(name="launch")
@@ -1666,7 +1674,7 @@ def mailpit_launch(smtp_port, web_port):
     st = mailpit_core.status()
     if not st:
         if not mailpit_core.is_installed():
-            console.print("[yellow]Mailpit not installed — downloading now...[/yellow]")
+            console.print("[yellow]Mailpit not installed - downloading now...[/yellow]")
             with console.status("[bold green]Downloading Mailpit...[/bold green]"):
                 try:
                     mailpit_core.install()

@@ -1,5 +1,5 @@
 """
-Mailpit — local email sandbox & SMTP catcher (https://github.com/axllent/mailpit).
+Mailpit - local email sandbox & SMTP catcher (https://github.com/axllent/mailpit).
 
 Downloads the prebuilt Windows binary from GitHub releases and manages the
 background process on Windows.
