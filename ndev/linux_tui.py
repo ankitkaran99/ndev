@@ -9,12 +9,13 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import webbrowser
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from rich.text import Text
-from textual import work
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
@@ -54,44 +55,32 @@ Screen {
 #sidebar {
     width: 36;
     min-width: 32;
-    max-width: 42;
+    max-width: 40;
+    height: 1fr;
     background: $panel;
     border-right: vkey $primary-background;
     padding: 1;
 }
 
 .sidebar-section {
+    height: auto;
     margin-bottom: 1;
     background: $surface;
     border: round $primary-background;
-    padding: 1;
+    padding: 0 1 1 1;
 }
 
 .section-title {
     text-style: bold;
     color: $accent;
-    margin-bottom: 1;
+    margin: 1 0;
     text-align: center;
 }
 
 .sidebar-btn {
-    width: 1fr;
+    width: 100%;
+    height: 3;
     margin-bottom: 1;
-}
-
-.sidebar-btn-row {
-    layout: horizontal;
-    height: auto;
-    margin-bottom: 1;
-}
-
-.sidebar-btn-row Button {
-    width: 1fr;
-    margin-right: 1;
-}
-
-.sidebar-btn-row Button:last-of-type {
-    margin-right: 0;
 }
 
 #main-content {
@@ -175,12 +164,10 @@ class NdevDashboard(App):
             with VerticalScroll(id="sidebar"):
                 with Vertical(classes="sidebar-section"):
                     yield Label("⚡ Quick Actions", classes="section-title")
-                    with Horizontal(classes="sidebar-btn-row"):
-                        yield Button("Start All", id="btn-start-all", variant="success")
-                        yield Button("Stop All", id="btn-stop-all", variant="error")
-                    with Horizontal(classes="sidebar-btn-row"):
-                        yield Button("Restart All", id="btn-restart-all", variant="warning")
-                        yield Button("Reload Nginx", id="btn-reload-nginx", variant="primary")
+                    yield Button("▶ Start All", id="btn-start-all", variant="success", classes="sidebar-btn")
+                    yield Button("⏹ Stop All", id="btn-stop-all", variant="error", classes="sidebar-btn")
+                    yield Button("🔄 Restart All", id="btn-restart-all", variant="warning", classes="sidebar-btn")
+                    yield Button("⚡ Reload Nginx", id="btn-reload-nginx", variant="primary", classes="sidebar-btn")
 
                 with Vertical(classes="sidebar-section"):
                     yield Label("🐘 Active PHP CLI", classes="section-title")
@@ -258,12 +245,23 @@ class NdevDashboard(App):
 
     def log_message(self, message: str) -> None:
         """Append formatted timestamped text to the RichLog console widget."""
-        now = datetime.datetime.now().strftime("%H:%M:%S")
-        try:
-            log_widget = self.query_one("#console-log", RichLog)
-            log_widget.write(f"[dim]{now}[/dim] {message}")
-        except Exception:
-            pass
+        def _write() -> None:
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+            try:
+                log_widget = self.query_one("#console-log", RichLog)
+                log_widget.write(f"[dim]{now}[/dim] {message}")
+            except Exception:
+                pass
+
+        if not self.is_mounted:
+            return
+        if hasattr(self, "_thread_id") and threading.get_ident() == self._thread_id:
+            _write()
+        else:
+            try:
+                self.call_from_thread(_write)
+            except Exception:
+                pass
 
     # ── ASYNC DATA FETCHERS ───────────────────────────────────────────────────
 
@@ -462,6 +460,7 @@ class NdevDashboard(App):
                 self._fetch_php_data(),
                 self._fetch_logs_dict(),
             )
+            self._available_logs = logs_dict
 
             # 1. Update Services Table (Preserving Cursor)
             svc_table = self.query_one("#table-services", DataTable)
@@ -657,8 +656,9 @@ class NdevDashboard(App):
         self._refresh_all_data(full_rebuild=True)
 
     # ── BUTTON AND EVENT HANDLERS ─────────────────────────────────────────────
-
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
+ 
+    @on(Button.Pressed)
+    def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
         if btn_id == "btn-start-all":
             self.action_start_all()
@@ -702,11 +702,21 @@ class NdevDashboard(App):
 
     def _handle_tail_log(self) -> None:
         """Read and display the tail of the selected log file."""
+        self.query_one(TabbedContent).active = "tab-logs"
         log_select = self.query_one("#select-log-file", Select)
         log_name = log_select.value
         if not log_name or log_name == Select.BLANK:
-            self.notify("Please select a log file first.", severity="warning")
-            return
+            if self._available_logs:
+                first_key = sorted(self._available_logs.keys())[0]
+                self._updating_selects = True
+                try:
+                    log_select.value = first_key
+                finally:
+                    self._updating_selects = False
+                log_name = first_key
+            else:
+                self.notify("No log files are currently available.", severity="warning")
+                return
 
         log_path = self._available_logs.get(str(log_name))
         if not log_path or not log_path.exists():
@@ -723,9 +733,6 @@ class NdevDashboard(App):
                     self.log_message(f"[dim]{line}[/dim]")
         except Exception as e:
             self.log_message(f"[bold red]Error reading log: {e}[/bold red]")
-
-        # Switch to Logs tab to view tail
-        self.query_one(TabbedContent).active = "tab-logs"
 
     # ── ROW SELECTION & PER-SERVICE ACTIONS ───────────────────────────────────
 
