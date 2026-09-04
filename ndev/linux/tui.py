@@ -24,6 +24,7 @@ from textual.widgets import (
     Button,
     Checkbox,
     DataTable,
+    DirectoryTree,
     Footer,
     Header,
     Input,
@@ -61,6 +62,40 @@ ModalScreen {
     background: $surface;
     border: thick $primary;
     padding: 1 2;
+}
+
+.picker-dialog {
+    width: 80;
+    height: 30;
+    max-height: 90%;
+}
+
+#tree-dir-picker {
+    height: 1fr;
+    border: round $primary;
+    margin: 1 0;
+    background: $background;
+}
+
+#lbl-picker-current {
+    color: $accent;
+    text-style: bold;
+    margin-bottom: 0;
+}
+
+.modal-input-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.modal-input-row Input {
+    width: 1fr;
+}
+
+.modal-input-row Button {
+    width: auto;
+    min-width: 14;
+    margin-left: 1;
 }
 
 #modal-title {
@@ -176,7 +211,63 @@ DataTable {
 """
 
 
-# ── MODAL DIALOG SCREENS ──────────────────────────────────────────────────────
+class DirectoryPickerModal(ModalScreen[Optional[str]]):
+    """Interactive directory picker modal with Textual DirectoryTree on Linux."""
+
+    def __init__(self, initial_path: Optional[str] = None) -> None:
+        super().__init__()
+        start_path = Path(initial_path).resolve() if initial_path and Path(initial_path).exists() else Path.cwd()
+        while not start_path.exists() and start_path.parent != start_path:
+            start_path = start_path.parent
+        self.start_path = start_path
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="modal-dialog", classes="picker-dialog"):
+            yield Label("📁 Select Document Root Directory", id="modal-title")
+            yield Label(f"Current Path: {self.start_path}", id="lbl-picker-current", classes="modal-label")
+            yield DirectoryTree(self.start_path, id="tree-dir-picker")
+            with Horizontal(id="modal-buttons"):
+                yield Button("Select Current Directory", variant="success", id="btn-picker-select")
+                yield Button("Browse OS Dialog (GUI)...", variant="primary", id="btn-picker-tk")
+                yield Button("Cancel", variant="default", id="btn-picker-cancel")
+
+    def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
+        selected_path = str(event.path.resolve())
+        self.query_one("#lbl-picker-current", Label).update(f"Current Path: {selected_path}")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-picker-select":
+            tree = self.query_one("#tree-dir-picker", DirectoryTree)
+            if tree.cursor_node and tree.cursor_node.data:
+                chosen = str(Path(tree.cursor_node.data.path).resolve())
+            else:
+                chosen = str(self.start_path)
+            self.dismiss(chosen)
+        elif event.button.id == "btn-picker-tk":
+            def _open_tk() -> Optional[str]:
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                    root = tk.Tk()
+                    root.withdraw()
+                    root.attributes("-topmost", True)
+                    selected = filedialog.askdirectory(
+                        title="Select Document Root Directory",
+                        initialdir=str(self.start_path)
+                    )
+                    root.destroy()
+                    return str(Path(selected).resolve()) if selected else None
+                except Exception:
+                    return None
+
+            selected = _open_tk()
+            if selected:
+                self.dismiss(selected)
+            else:
+                self.notify("No folder selected from OS dialog.", severity="information")
+        else:
+            self.dismiss(None)
+
 
 class CreateVhostModal(ModalScreen[Optional[dict]]):
     """Modal dialog to create a new virtual host with local SSL on Linux."""
@@ -195,7 +286,9 @@ class CreateVhostModal(ModalScreen[Optional[dict]]):
             yield Label("Domain Name (e.g. app.test):", classes="modal-label")
             yield Input(placeholder="app.test", id="input-vhost-domain", classes="modal-input")
             yield Label("Document Root Directory:", classes="modal-label")
-            yield Input(placeholder="/var/www/app (or public folder)", id="input-vhost-root", classes="modal-input")
+            with Horizontal(classes="modal-input-row"):
+                yield Input(placeholder="/var/www/app (or public folder)", id="input-vhost-root")
+                yield Button("📁 Browse...", id="btn-vhost-browse", variant="primary")
             yield Label("PHP Version:", classes="modal-label")
             yield Select(php_options, value=initial_php, id="select-vhost-php", classes="modal-input")
             yield Checkbox("Enable Local SSL (HTTPS with mkcert)", value=True, id="chk-vhost-ssl")
@@ -204,7 +297,15 @@ class CreateVhostModal(ModalScreen[Optional[dict]]):
                 yield Button("Cancel", variant="default", id="btn-modal-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-modal-create":
+        if event.button.id == "btn-vhost-browse":
+            current_val = self.query_one("#input-vhost-root", Input).value.strip()
+
+            def _on_dir_chosen(chosen: Optional[str]) -> None:
+                if chosen:
+                    self.query_one("#input-vhost-root", Input).value = chosen
+
+            self.app.push_screen(DirectoryPickerModal(current_val), _on_dir_chosen)
+        elif event.button.id == "btn-modal-create":
             domain = self.query_one("#input-vhost-domain", Input).value.strip()
             root = self.query_one("#input-vhost-root", Input).value.strip()
             php_val = self.query_one("#select-vhost-php", Select).value
