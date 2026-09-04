@@ -10,11 +10,11 @@ import platform
 def run_dashboard() -> None:
     """Launch the interactive Textual TUI stack monitor for the current OS."""
     if platform.system() == "Windows":
-        from ndev.windows.tui import NdevDashboard
+        from ndev.win.tui import NdevDashboard
         app = NdevDashboard()
         app.run()
     else:
-        from ndev.linux_tui import NdevDashboard
+        from ndev.linux.tui import NdevDashboard
         app = NdevDashboard()
         app.run()
 

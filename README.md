@@ -50,6 +50,36 @@ A single unified repository and package with automatic OS detection that uses na
 
 ---
 
+## Codebase Architecture
+
+```text
+ndev/
+├── main.py                 # Main entrypoint & automatic OS dispatcher
+├── cli.py                  # CLI redirect to ndev.main
+├── tui.py                  # TUI redirect to ndev.win.tui or ndev.linux.tui
+├── common/                 # Cross-platform shared utilities
+│   ├── constants.py        # Shared directory constants and defaults
+│   ├── logger.py           # Rich logging engine
+│   ├── config.py           # Configuration schema and loader
+│   ├── github.py           # GitHub release query APIs
+│   ├── manifest.py         # Build manifest and package index
+│   └── utils.py            # Shared system & network helper functions
+├── win/                    # Windows native subsystem
+│   ├── cli.py              # Windows Click CLI command suite
+│   ├── tui.py              # Windows Textual TUI Dashboard & Modals
+│   ├── core/               # Windows core modules (paths, php, fcgi, services, vhost, mkcert, db, pma, mailpit, setup, upgrade)
+│   └── templates/          # Nginx virtual host configuration templates
+└── linux/                  # Linux native subsystem
+    ├── cli.py              # Linux Typer CLI command suite
+    ├── tui.py              # Linux Textual TUI Dashboard & Modals
+    ├── commands/           # Linux CLI sub-commands (start, stop, vhost, ctl, etc.)
+    ├── runtime/            # Linux daemon runners (fpm, pma, mailpit, process, upgrade)
+    ├── php/                # Linux PHP source compilation & resolver
+    └── chroot/             # Unprivileged bubblewrap sandbox manager
+```
+
+---
+
 ## Directory Structure & Layout
 
 ### Linux Layout (`~/.ndev`)

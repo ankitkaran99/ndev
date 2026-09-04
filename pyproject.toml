@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ndev = "ndev.cli:main"
+ndev = "ndev.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
