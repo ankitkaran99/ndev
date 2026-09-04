@@ -61,7 +61,7 @@ def install_host_packages(packages: list[str], show_logs: bool = False):
         # Fix broken relative symlinks in usr/local/lib pointing to multiarch runtime libraries
         lib_dir = local_dir / "lib"
         if lib_dir.exists():
-            for root, dirs, files in os.walk(lib_dir):
+            for root, _dirs, files in os.walk(lib_dir):
                 for file in files:
                     file_path = Path(root) / file
                     if file_path.is_symlink():
