@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ndev-stack"
-version = "0.1.0"
-description = "Cross-platform developer stack manager for PHP, FastCGI/PHP-FPM, MariaDB, Nginx, SSL, and Mailpit on Linux and Windows"
+version = "0.2.0"
+description = "Cross-platform developer stack manager for PHP, FastCGI/PHP-FPM, MariaDB, Redis, Nginx, SSL, and Mailpit on Linux and Windows"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [

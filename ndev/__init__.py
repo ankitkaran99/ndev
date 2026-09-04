@@ -1,7 +1,7 @@
 """
 ndev: Fast, cross-platform PHP developer environment for Windows and Linux.
 """
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from . import common as common
 from .common.logger import logger as logger
