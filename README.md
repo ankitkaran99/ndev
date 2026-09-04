@@ -126,44 +126,68 @@ ndev/
 
 ---
 
-## Quick Start & Installation
+## Installation
 
-### Linux (Debian / Ubuntu)
+### Standard Installation via PyPI
+
+Install `ndev` directly using `pip` or `pipx` (recommended for standalone CLI tools):
 
 ```bash
-# 1. Install prerequisites
-sudo apt update
-sudo apt install -y bubblewrap build-essential pkg-config nginx mkcert default-mysql-client
-mkcert -install
+# Using pip
+pip install ndev
 
-# 2. Clone repository & install in editable mode
-git clone https://github.com/ankitkaran99/ndev.git
-cd ndev
-python3 -m venv .venv
-.venv/bin/pip install -e .
-
-# 3. Setup system components and local shims
-.venv/bin/ndev setup
-
-# 4. Add ~/.local/bin to your PATH
-export PATH="$HOME/.local/bin:$PATH"
+# Or using pipx (isolated application environment)
+pipx install ndev
 ```
+
+---
+
+## Quick Start Guide
 
 ### Windows 10 / 11
 
 ```powershell
-# 1. Clone repository & install in editable mode
-git clone https://github.com/ankitkaran99/ndev.git
-cd ndev
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -e .
+# 1. Install ndev
+pip install ndev
 
-# 2. Download and configure all portable components
+# 2. Download and configure portable stack (Nginx, MariaDB, mkcert, Mailpit, Composer)
 ndev setup
 
-# 3. Add shims to user PATH
+# 3. Add shims to user PATH (one-time setup for global CLI access)
 [Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:USERPROFILE\.ndev\shims", "User")
+$env:Path += ";$env:USERPROFILE\.ndev\shims"
+
+# 4. Verify installation & launch interactive dashboard
+ndev doctor
+ndev ui
+```
+
+### Linux (Debian / Ubuntu)
+
+```bash
+# 1. Install system build dependencies
+sudo apt update
+sudo apt install -y bubblewrap build-essential pkg-config nginx mkcert default-mysql-client
+mkcert -install
+
+# 2. Install ndev
+pip install ndev
+
+# 3. Bootstrap runtime environment and shims
+ndev setup
+export PATH="$HOME/.local/bin:$PATH"
+
+# 4. Verify installation & launch interactive dashboard
+ndev doctor
+ndev ui
+```
+
+### Development / Source Installation
+
+```bash
+git clone https://github.com/ankitkaran99/ndev.git
+cd ndev
+pip install -e .
 ```
 
 ---
