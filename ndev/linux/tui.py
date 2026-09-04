@@ -354,16 +354,43 @@ class ConfirmActionModal(ModalScreen[bool]):
             self.dismiss(False)
 
 
+DEFAULT_LINUX_PHP = [
+    # PHP 8.4 series
+    "8.4.25", "8.4.24", "8.4.20", "8.4.15", "8.4.10", "8.4.5", "8.4.0",
+    # PHP 8.3 series
+    "8.3.33", "8.3.17", "8.3.10", "8.3.5", "8.3.0",
+    # PHP 8.2 series
+    "8.2.33", "8.2.27", "8.2.20", "8.2.10", "8.2.0",
+    # PHP 8.1 series
+    "8.1.34", "8.1.31", "8.1.20", "8.1.10", "8.1.0",
+    # PHP 8.0 series
+    "8.0.30", "8.0.25", "8.0.15", "8.0.0",
+    # PHP 7.4 series
+    "7.4.33", "7.4.30", "7.4.20", "7.4.10", "7.4.0",
+    # PHP 7.3 series
+    "7.3.33", "7.3.25", "7.3.0",
+    # PHP 7.2 series
+    "7.2.34", "7.2.20", "7.2.0",
+    # PHP 7.1 series
+    "7.1.33", "7.1.20", "7.1.0",
+    # PHP 7.0 series
+    "7.0.33", "7.0.20", "7.0.0",
+    # PHP 5.6 series
+    "5.6.40",
+]
+
+
 class InstallPhpModal(ModalScreen[Optional[dict]]):
     """Modal dialog to select and install a PHP runtime on Linux."""
 
     def __init__(self, popular_versions: Optional[list[str]] = None) -> None:
         super().__init__()
-        self.popular_versions = popular_versions or ["8.4.25", "8.3.17", "8.2.27", "8.1.31", "7.4.33"]
+        self.popular_versions = popular_versions or DEFAULT_LINUX_PHP
 
     def compose(self) -> ComposeResult:
-        opts = [(v, v) for v in self.popular_versions]
+        opts = [(f"PHP {v}", v) for v in self.popular_versions]
         default_v = opts[0][1] if opts else "8.4.25"
+
 
         with Vertical(id="modal-dialog"):
             yield Label("🐘 Install PHP Runtime", id="modal-title")
@@ -448,9 +475,11 @@ class NdevDashboard(App):
                     yield Label("[bold]🌐 Ports Reference[/bold]")
                     yield Label("• Nginx: 80 / 443 (SSL)")
                     yield Label("• MariaDB: 3306")
+                    yield Label("• Redis: 6379")
                     yield Label("• PMA (phpMyAdmin): 8080")
                     yield Label("• Mailpit Web: 8025")
                     yield Label("• Mailpit SMTP: 1025")
+
 
             # ── MAIN CONTENT (TABS) ──
             with Container(id="main-content"):
@@ -584,7 +613,27 @@ class NdevDashboard(App):
                 "url": None,
             })
 
-            # 3. phpMyAdmin
+            # 3. Redis
+            redis_installed = bool(shutil.which("redis-server"))
+            redis_running = False
+            if redis_installed and shutil.which("systemctl"):
+                res = subprocess.run(["systemctl", "is-active", "--quiet", "redis-server"])
+                if res.returncode != 0:
+                    res = subprocess.run(["systemctl", "is-active", "--quiet", "redis"])
+                redis_running = (res.returncode == 0)
+
+            results.append({
+                "key": "redis",
+                "name": "Redis",
+                "type": "In-Memory Store",
+                "installed": redis_installed,
+                "running": redis_running,
+                "pid": "Active" if redis_running else "-",
+                "details": "Port: 6379 (CLI: redis-cli)",
+                "url": None,
+            })
+
+            # 4. phpMyAdmin
             pma_st = get_pma_status()
             pma_url = pma_st.get("url") or f"http://127.0.0.1:{pma_st.get('port', 8080)}"
             results.append({
@@ -598,7 +647,7 @@ class NdevDashboard(App):
                 "url": pma_url if pma_st.get("running") else None,
             })
 
-            # 4. Mailpit
+            # 5. Mailpit
             mp_st = get_mailpit_status()
             mp_url = mp_st.get("url") or f"http://127.0.0.1:{mp_st.get('web_port', 8025)}"
             results.append({
@@ -612,7 +661,8 @@ class NdevDashboard(App):
                 "url": mp_url if mp_st.get("running") else None,
             })
 
-            # 5. PHP-FPM Pools
+            # 6. PHP-FPM Pools
+
             installed_phps = []
             if PHP_DIR.exists():
                 for d in PHP_DIR.iterdir():
@@ -835,18 +885,21 @@ class NdevDashboard(App):
             # 2. MariaDB
             if shutil.which("systemctl"):
                 subprocess.run(["sudo", "systemctl", "start", "mariadb"])
-            # 3. phpMyAdmin
+            # 3. Redis
+            if shutil.which("systemctl"):
+                subprocess.run(["sudo", "systemctl", "start", "redis-server"])
+            # 4. phpMyAdmin
             try:
                 start_pma()
             except Exception as e:
                 self.log_message(f"[yellow]phpMyAdmin notice: {e}[/yellow]")
-            # 4. Mailpit
+            # 5. Mailpit
             try:
                 if is_mailpit_installed() and not get_mailpit_status()["running"]:
                     start_mailpit()
             except Exception as e:
                 self.log_message(f"[yellow]Mailpit notice: {e}[/yellow]")
-            # 5. PHP-FPM pools
+            # 6. PHP-FPM pools
             if PHP_DIR.exists():
                 for d in PHP_DIR.iterdir():
                     if d.is_dir():
@@ -870,12 +923,14 @@ class NdevDashboard(App):
             if shutil.which("systemctl"):
                 subprocess.run(["sudo", "systemctl", "stop", "nginx"])
                 subprocess.run(["sudo", "systemctl", "stop", "mariadb"])
+                subprocess.run(["sudo", "systemctl", "stop", "redis-server"])
             stop_pma()
             stop_mailpit()
             if PHP_DIR.exists():
                 for d in PHP_DIR.iterdir():
                     if d.is_dir():
                         stop_fpm(d.name)
+
 
         await asyncio.to_thread(_do)
         self.log_message("[bold green]✓ All services stopped.[/bold green]")
@@ -1289,12 +1344,16 @@ class NdevDashboard(App):
                 setup_pma()
             elif key == "mailpit":
                 setup_mailpit()
+            elif key == "redis":
+                if shutil.which("apt"):
+                    subprocess.run(["sudo", "apt-get", "install", "-y", "redis-server"], check=True)
             elif key == "nginx":
                 if shutil.which("apt"):
                     subprocess.run(["sudo", "apt-get", "install", "-y", "nginx"], check=True)
             elif key == "mariadb":
                 if shutil.which("apt"):
                     subprocess.run(["sudo", "apt-get", "install", "-y", "mariadb-server"], check=True)
+
 
         try:
             await asyncio.to_thread(_do)
@@ -1408,6 +1467,12 @@ class NdevDashboard(App):
                 else:
                     subprocess.run(["sudo", "service", "mariadb", action], check=True)
 
+            elif key == "redis":
+                if shutil.which("systemctl"):
+                    subprocess.run(["sudo", "systemctl", action, "redis-server"], check=True)
+                else:
+                    subprocess.run(["sudo", "service", "redis-server", action], check=True)
+
             elif key == "pma":
                 if action == "start":
                     start_pma()
@@ -1423,6 +1488,7 @@ class NdevDashboard(App):
                     stop_mailpit()
                 elif action == "restart":
                     restart_mailpit()
+
 
             elif key.startswith("php:"):
                 ver = key.split(":", 1)[1]

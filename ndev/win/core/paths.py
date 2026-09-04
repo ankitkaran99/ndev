@@ -22,6 +22,7 @@ NGINX_CONF_D = NGINX_DIR / "conf" / "ndev-vhosts"
 NGINX_LOGS_DIR = NGINX_DIR / "logs"
 MARIADB_DIR = NDEV_HOME / "mariadb"
 PMA_DIR = NDEV_HOME / "pma"
+REDIS_DIR = NDEV_HOME / "redis"
 TEMPLATES_DIR = NDEV_HOME / "templates"
 CONFIG_FILE = NDEV_HOME / "config.json"
 CURRENT_FILE = NDEV_HOME / "current"        # active PHP version, plain text
@@ -42,9 +43,10 @@ DEFAULT_CONFIG = {
 
 def ensure_dirs() -> None:
     for d in (PHP_DIR, DOWNLOADS_DIR, RUN_DIR, CERTS_DIR, NGINX_CONF_D,
-              NGINX_LOGS_DIR, MARIADB_DIR, PMA_DIR, TEMPLATES_DIR, SHIM_DIR,
+              NGINX_LOGS_DIR, MARIADB_DIR, PMA_DIR, REDIS_DIR, TEMPLATES_DIR, SHIM_DIR,
               TEMP_DIR, SESSIONS_DIR, BACKUPS_DIR):
         d.mkdir(parents=True, exist_ok=True)
+
 
 
 def load_config() -> dict:

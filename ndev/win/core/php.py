@@ -9,10 +9,11 @@ import os
 import re
 import shutil
 import subprocess
-import urllib.request
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+
+import httpx
 
 from . import paths
 
@@ -32,15 +33,20 @@ class PhpRelease:
 
 
 def _fetch_json(url: str) -> dict:
-    req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ndev/0.1.0"}
+    with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+        resp = client.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
 
 
 def _fetch_html(url: str) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return resp.read().decode("utf-8", errors="ignore")
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ndev/0.1.0"}
+    with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+        resp = client.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.text
+
 
 
 def list_available(include_archives: bool = False) -> list[PhpRelease]:
@@ -119,6 +125,42 @@ def list_available_archives() -> list[PhpRelease]:
     return releases
 
 
+def list_all_installable_versions(arch: str = "x64", thread_safe: bool = True) -> list[str]:
+    """
+    Get a comprehensive list of all installable PHP versions sorted newest first.
+    Includes active releases, minor branch releases (8.4, 8.3, 8.2, 8.1, 8.0, 7.4, 7.3, 7.2, 7.1, 7.0, 5.6),
+    and archived versions.
+    """
+    fallback_defaults = [
+        "8.4.25", "8.4.24", "8.4.20", "8.4.0",
+        "8.3.33", "8.3.17", "8.3.0",
+        "8.2.33", "8.2.27", "8.2.0",
+        "8.1.34", "8.1.31", "8.1.0",
+        "8.0.30", "8.0.0",
+        "7.4.33", "7.4.0",
+        "7.3.33",
+        "7.2.34",
+        "7.1.33",
+        "7.0.33",
+        "5.6.40",
+    ]
+    try:
+        rels = list_available(include_archives=True)
+        versions = []
+        seen = set()
+        for r in rels:
+            if r.arch == arch and r.thread_safe == thread_safe:
+                if r.version not in seen:
+                    seen.add(r.version)
+                    versions.append(r.version)
+        if versions:
+            versions.sort(key=_version_key, reverse=True)
+            return versions
+    except Exception:
+        pass
+    return fallback_defaults
+
+
 def _version_key(v: str) -> tuple[int, ...]:
     parts = []
     for part in v.split("."):
@@ -130,6 +172,7 @@ def _version_key(v: str) -> tuple[int, ...]:
 
 
 def resolve_release(version_query: str, arch: str = "x64", thread_safe: bool = True) -> PhpRelease | None:
+
     """
     Resolve a version query (e.g. '8.4', '8.4.25', '7.4') to a matching PhpRelease.
     Checks active releases first, then falls back to archives.
@@ -186,38 +229,61 @@ def resolve_release(version_query: str, arch: str = "x64", thread_safe: bool = T
 
 
 def download_release(release: PhpRelease, progress_callback=None) -> Path:
+    """
+    Download PHP binary release with automatic fallback mirrors and chunk retries.
+    """
     paths.ensure_dirs()
-    dest = paths.DOWNLOADS_DIR / Path(release.zip_url).name
+    filename = Path(release.zip_url).name
+    dest = paths.DOWNLOADS_DIR / filename
     if dest.exists() and dest.stat().st_size > 0:
         if progress_callback:
             progress_callback(dest.stat().st_size, dest.stat().st_size)
         return dest
+
     tmp = dest.with_suffix(".part")
-    req = urllib.request.Request(release.zip_url, headers={"User-Agent": "ndev/0.1.0"})
-    try:
-        with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
-            total_size = int(resp.headers.get("Content-Length", 0))
-            downloaded = 0
-            chunk_size = 65536
-            while True:
-                chunk = resp.read(chunk_size)
-                if not chunk:
-                    break
-                f.write(chunk)
-                downloaded += len(chunk)
-                if progress_callback:
-                    progress_callback(downloaded, total_size)
-        if tmp.exists() and tmp.stat().st_size > 0:
-            if dest.exists():
-                dest.unlink()
-            tmp.rename(dest)
-        else:
-            raise RuntimeError(f"Download from {release.zip_url} resulted in empty file.")
-    except Exception:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
-        raise
-    return dest
+
+    # Build candidates: primary URL, then archive URL or release URL fallback
+    candidates = [release.zip_url]
+    if "archives" in release.zip_url:
+        candidates.append(f"https://windows.php.net/downloads/releases/{filename}")
+    else:
+        candidates.append(f"https://windows.php.net/downloads/releases/archives/{filename}")
+
+    last_err: Exception | None = None
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ndev/0.1.0"}
+
+    for url in candidates:
+        try:
+            with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(connect=15.0, read=45.0, write=15.0, pool=15.0)) as client:
+                with client.stream("GET", url, headers=headers) as resp:
+                    if resp.status_code != 200:
+                        continue
+                    total_size = int(resp.headers.get("Content-Length", 0))
+                    downloaded = 0
+                    with open(tmp, "wb") as f:
+                        for chunk in resp.iter_bytes(chunk_size=131072):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if progress_callback:
+                                    progress_callback(downloaded, total_size)
+            if tmp.exists() and tmp.stat().st_size > 0:
+                if dest.exists():
+                    dest.unlink()
+                tmp.rename(dest)
+                return dest
+        except Exception as e:
+            last_err = e
+            if tmp.exists():
+                tmp.unlink(missing_ok=True)
+            continue
+
+    if tmp.exists():
+        tmp.unlink(missing_ok=True)
+    if last_err:
+        raise RuntimeError(f"Failed to download PHP from {release.zip_url}: {last_err}") from last_err
+    raise RuntimeError(f"Download failed for {release.zip_url}")
+
 
 
 def install(version: str, zip_path: Path) -> Path:

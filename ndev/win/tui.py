@@ -31,7 +31,8 @@ from textual.widgets import (
     TabPane,
 )
 
-from .core import fcgi, logs, mailpit, paths, php, pma, services, setup as setup_core, upgrade as upgrade_core, vhost
+from .core import fcgi, logs, mailpit, paths, php, pma, redis_core, services, setup as setup_core, upgrade as upgrade_core, vhost
+
 
 
 # ── CSS STYLESHEET ────────────────────────────────────────────────────────────
@@ -371,27 +372,54 @@ class ConfirmActionModal(ModalScreen[bool]):
             self.dismiss(False)
 
 
+DEFAULT_POPULAR_PHP = [
+    # PHP 8.4 series
+    "8.4.25", "8.4.24", "8.4.20", "8.4.15", "8.4.10", "8.4.5", "8.4.0",
+    # PHP 8.3 series
+    "8.3.33", "8.3.17", "8.3.10", "8.3.5", "8.3.0",
+    # PHP 8.2 series
+    "8.2.33", "8.2.27", "8.2.20", "8.2.10", "8.2.0",
+    # PHP 8.1 series
+    "8.1.34", "8.1.31", "8.1.20", "8.1.10", "8.1.0",
+    # PHP 8.0 series
+    "8.0.30", "8.0.25", "8.0.15", "8.0.0",
+    # PHP 7.4 series
+    "7.4.33", "7.4.30", "7.4.20", "7.4.10", "7.4.0",
+    # PHP 7.3 series
+    "7.3.33", "7.3.25", "7.3.0",
+    # PHP 7.2 series
+    "7.2.34", "7.2.20", "7.2.0",
+    # PHP 7.1 series
+    "7.1.33", "7.1.20", "7.1.0",
+    # PHP 7.0 series
+    "7.0.33", "7.0.20", "7.0.0",
+    # PHP 5.6 series
+    "5.6.40",
+]
+
+
 class InstallPhpModal(ModalScreen[Optional[dict]]):
     """Modal dialog to select and install a PHP runtime."""
 
-    def __init__(self, popular_versions: Optional[list[str]] = None) -> None:
+    def __init__(self, available_versions: Optional[list[str]] = None) -> None:
         super().__init__()
-        self.popular_versions = popular_versions or ["8.4.25", "8.3.17", "8.2.27", "8.1.31", "7.4.33"]
+        self.available_versions = available_versions or DEFAULT_POPULAR_PHP
 
     def compose(self) -> ComposeResult:
-        opts = [(v, v) for v in self.popular_versions]
+        opts = [(f"PHP {v}", v) for v in self.available_versions]
         default_v = opts[0][1] if opts else "8.4.25"
 
         with Vertical(id="modal-dialog"):
             yield Label("🐘 Install PHP Runtime", id="modal-title")
             yield Label("Select Upstream PHP Release:", classes="modal-label")
             yield Select(opts, value=default_v, id="select-php-ver", classes="modal-input")
-            yield Label("Or specify Custom Version (e.g. 8.4.25):", classes="modal-label")
+            yield Label("Or specify Custom Version / Query (e.g. 8.4, 8.3.17, 7.4):", classes="modal-label")
             yield Input(placeholder="Leave blank to use selected release above", id="input-custom-ver", classes="modal-input")
             yield Checkbox("Thread-Safe (TS, recommended for FastCGI)", value=True, id="chk-php-ts")
             with Horizontal(id="modal-buttons"):
                 yield Button("Download & Install", variant="success", id="btn-modal-install")
                 yield Button("Cancel", variant="default", id="btn-modal-cancel")
+
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-modal-install":
@@ -469,9 +497,11 @@ class NdevDashboard(App):
                     yield Label("[bold]🌐 Ports Reference[/bold]")
                     yield Label("• Nginx: 80 / 443 (SSL)")
                     yield Label("• MariaDB: 3306")
+                    yield Label("• Redis: 6379")
                     yield Label("• phpMyAdmin (PMA): 8080")
                     yield Label("• Mailpit Web: 8025")
                     yield Label("• Mailpit SMTP: 1025")
+
 
             # ── MAIN CONTENT (TABS) ──
             with Container(id="main-content"):
@@ -595,7 +625,23 @@ class NdevDashboard(App):
                 "url": None,
             })
 
-            # 3. phpMyAdmin
+            # 3. Redis
+            rd_installed = redis_core.is_installed()
+            rd_st = redis_core.status() if rd_installed else None
+            rd_running = bool(rd_st and rd_st.get("running"))
+            rd_pid = str(rd_st.get("pid")) if (rd_running and rd_st) else "-"
+            results.append({
+                "key": "redis",
+                "name": "Redis",
+                "type": "In-Memory Store",
+                "installed": rd_installed,
+                "running": rd_running,
+                "pid": rd_pid,
+                "details": "Port 6379 (CLI: redis-cli)" if rd_running else f"Dir: {paths.REDIS_DIR}",
+                "url": None,
+            })
+
+            # 4. phpMyAdmin
             pma_installed = (paths.PMA_DIR / "index.php").exists()
             pma_st = pma.status() if pma_installed else None
             pma_running = bool(pma_st)
@@ -612,7 +658,7 @@ class NdevDashboard(App):
                 "url": pma_url if pma_running else None,
             })
 
-            # 4. Mailpit
+            # 5. Mailpit
             mp_installed = mailpit.is_installed()
             mp_st = mailpit.status() if mp_installed else None
             mp_running = bool(mp_st)
@@ -629,7 +675,8 @@ class NdevDashboard(App):
                 "url": mp_url if mp_running else None,
             })
 
-            # 5. PHP FastCGI Pools
+            # 6. PHP FastCGI Pools
+
             curr_php = php.get_current_version()
             installed_phps = php.list_installed()
             for v in installed_phps:
@@ -788,21 +835,28 @@ class NdevDashboard(App):
             except Exception as e:
                 self.log_message(f"[yellow]MariaDB notice: {e}[/yellow]")
 
-            # 3. phpMyAdmin
+            # 3. Redis
+            try:
+                if redis_core.is_installed() and not redis_core.status():
+                    redis_core.start()
+            except Exception as e:
+                self.log_message(f"[yellow]Redis notice: {e}[/yellow]")
+
+            # 4. phpMyAdmin
             try:
                 if (paths.PMA_DIR / "index.php").exists() and not pma.status():
                     pma.start()
             except Exception as e:
                 self.log_message(f"[yellow]phpMyAdmin notice: {e}[/yellow]")
 
-            # 4. Mailpit
+            # 5. Mailpit
             try:
                 if mailpit.is_installed() and not mailpit.status():
                     mailpit.start()
             except Exception as e:
                 self.log_message(f"[yellow]Mailpit notice: {e}[/yellow]")
 
-            # 5. PHP FastCGI Pools
+            # 6. PHP FastCGI Pools
             cfg = paths.load_config()
             for v in php.list_installed():
                 try:
@@ -824,6 +878,7 @@ class NdevDashboard(App):
         def _do() -> None:
             services.nginx_stop()
             services.mariadb_stop()
+            redis_core.stop()
             pma.stop()
             mailpit.stop()
             for v in php.list_installed():
@@ -844,6 +899,7 @@ class NdevDashboard(App):
             # Stop all
             services.nginx_stop()
             services.mariadb_stop()
+            redis_core.stop()
             pma.stop()
             mailpit.stop()
             for v in php.list_installed():
@@ -852,6 +908,11 @@ class NdevDashboard(App):
             # Start all
             services.nginx_start()
             services.mariadb_start()
+            try:
+                if redis_core.is_installed():
+                    redis_core.start()
+            except Exception:
+                pass
             try:
                 if (paths.PMA_DIR / "index.php").exists():
                     pma.start()
@@ -868,6 +929,7 @@ class NdevDashboard(App):
                     fcgi.start(v, php.php_cgi_exe(v), cfg["fcgi_workers_per_version"], cfg["fcgi_base_port"])
                 except Exception:
                     pass
+
 
         await asyncio.to_thread(_do)
         self.log_message("[bold green]✓ All services restarted.[/bold green]")
@@ -1094,16 +1156,24 @@ class NdevDashboard(App):
             self.log_message(f"[bold cyan]Downloading PHP {rel.version} from {rel.zip_url}...[/bold cyan]")
             self.notify(f"Downloading PHP {rel.version}...", severity="information")
 
+            last_reported_mb = -1.0
             last_pct = -1
             def _on_progress(downloaded: int, total: int) -> None:
-                nonlocal last_pct
+                nonlocal last_pct, last_reported_mb
+                mb_down = downloaded / (1024 * 1024)
                 if total > 0:
                     pct = int(downloaded * 100 / total)
-                    if pct != last_pct and pct % 20 == 0:
+                    # Report every 10% or at least every 3 MB
+                    if (pct != last_pct and pct % 10 == 0) or (mb_down - last_reported_mb >= 3.0):
                         last_pct = pct
-                        mb_down = downloaded / (1024 * 1024)
+                        last_reported_mb = mb_down
                         mb_tot = total / (1024 * 1024)
                         self.log_message(f"  ↳ Downloaded {mb_down:.1f} MB / {mb_tot:.1f} MB ({pct}%)")
+                else:
+                    if mb_down - last_reported_mb >= 2.0:
+                        last_reported_mb = mb_down
+                        self.log_message(f"  ↳ Downloaded {mb_down:.1f} MB")
+
 
             zip_path = await asyncio.to_thread(php.download_release, rel, progress_callback=_on_progress)
 
@@ -1185,6 +1255,8 @@ class NdevDashboard(App):
                 pma.install()
             elif key == "mailpit":
                 mailpit.install()
+            elif key == "redis":
+                redis_core.install()
             elif key == "nginx":
                 setup_core.install_nginx()
             elif key == "mariadb":
@@ -1193,6 +1265,7 @@ class NdevDashboard(App):
                 setup_core.install_mkcert()
             elif key == "composer":
                 setup_core.install_composer()
+
             elif key.startswith("php:"):
                 ver = key.split(":", 1)[1]
                 rel = php.resolve_release(ver)
@@ -1331,6 +1404,14 @@ class NdevDashboard(App):
                 elif action == "restart":
                     pma.restart()
 
+            elif key == "redis":
+                if action == "start":
+                    redis_core.start()
+                elif action == "stop":
+                    redis_core.stop()
+                elif action == "restart":
+                    redis_core.restart()
+
             elif key == "mailpit":
                 if action == "start":
                     mailpit.start()
@@ -1338,6 +1419,7 @@ class NdevDashboard(App):
                     mailpit.stop()
                 elif action == "restart":
                     mailpit.restart()
+
 
             elif key.startswith("php:"):
                 ver = key.split(":", 1)[1]

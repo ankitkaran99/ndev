@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Optional
+
+import httpx
 
 from . import paths
 
@@ -27,15 +28,15 @@ def _download(url: str, dest: Path) -> Path:
     if dest.exists() and dest.stat().st_size > 0:
         return dest
     tmp = dest.with_suffix(dest.suffix + ".part")
-    req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ndev/0.1.0"}
     try:
-        with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
-            chunk_size = 65536
-            while True:
-                chunk = resp.read(chunk_size)
-                if not chunk:
-                    break
-                f.write(chunk)
+        with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(connect=15.0, read=45.0, write=15.0, pool=15.0)) as client:
+            with client.stream("GET", url, headers=headers) as resp:
+                resp.raise_for_status()
+                with open(tmp, "wb") as f:
+                    for chunk in resp.iter_bytes(chunk_size=131072):
+                        if chunk:
+                            f.write(chunk)
         if tmp.exists() and tmp.stat().st_size > 0:
             if dest.exists():
                 dest.unlink()

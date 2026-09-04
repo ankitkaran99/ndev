@@ -6,10 +6,11 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Optional
+
+import httpx
 
 from . import fcgi, paths, php
 
@@ -28,12 +29,21 @@ def install(version: str = DEFAULT_VERSION) -> Path:
     paths.ensure_dirs()
     url = DOWNLOAD_URL_TMPL.format(version=version)
     zip_path = paths.DOWNLOADS_DIR / f"phpMyAdmin-{version}.zip"
-    if not zip_path.exists():
-        req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
+    if not zip_path.exists() or zip_path.stat().st_size == 0:
         tmp = zip_path.with_suffix(".part")
-        with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
-            shutil.copyfileobj(resp, f)
-        tmp.rename(zip_path)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ndev/0.1.0"}
+        with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(connect=15.0, read=60.0, write=15.0, pool=15.0)) as client:
+            with client.stream("GET", url, headers=headers) as resp:
+                resp.raise_for_status()
+                with open(tmp, "wb") as f:
+                    for chunk in resp.iter_bytes(chunk_size=131072):
+                        if chunk:
+                            f.write(chunk)
+        if tmp.exists() and tmp.stat().st_size > 0:
+            if zip_path.exists():
+                zip_path.unlink()
+            tmp.rename(zip_path)
+
 
     if PMA_DIR.exists():
         shutil.rmtree(PMA_DIR)

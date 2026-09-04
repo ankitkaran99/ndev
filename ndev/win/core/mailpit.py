@@ -14,12 +14,14 @@ import shutil
 import socket
 import subprocess
 import time
-import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Optional
 
+import httpx
+
 from . import fcgi, paths
+
 
 # ── constants ────────────────────────────────────────────────────────────────
 
@@ -54,12 +56,11 @@ def binary() -> Path:
 
 
 def _fetch_latest_release() -> dict:
-    req = urllib.request.Request(
-        RELEASES_API_URL,
-        headers={"User-Agent": "ndev/0.1.0"},
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ndev/0.1.0"}
+    with httpx.Client(follow_redirects=True, timeout=20.0) as client:
+        resp = client.get(RELEASES_API_URL, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
 
 
 def _find_windows_asset(release: dict) -> Optional[dict]:
@@ -95,12 +96,21 @@ def install() -> Path:
     dl_path = paths.DOWNLOADS_DIR / name
 
     # Download (skip if already cached)
-    if not dl_path.exists():
-        req = urllib.request.Request(url, headers={"User-Agent": "ndev/0.1.0"})
+    if not dl_path.exists() or dl_path.stat().st_size == 0:
         tmp = dl_path.with_suffix(".part")
-        with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
-            shutil.copyfileobj(resp, f)
-        tmp.rename(dl_path)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ndev/0.1.0"}
+        with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(connect=15.0, read=45.0, write=15.0, pool=15.0)) as client:
+            with client.stream("GET", url, headers=headers) as resp:
+                resp.raise_for_status()
+                with open(tmp, "wb") as f:
+                    for chunk in resp.iter_bytes(chunk_size=131072):
+                        if chunk:
+                            f.write(chunk)
+        if tmp.exists() and tmp.stat().st_size > 0:
+            if dl_path.exists():
+                dl_path.unlink()
+            tmp.rename(dl_path)
+
 
     # Extract .exe from zip
     with zipfile.ZipFile(dl_path) as zf:

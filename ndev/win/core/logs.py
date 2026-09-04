@@ -24,6 +24,11 @@ def get_available_logs() -> dict[str, Path]:
             for p in data_dir.glob("*.err"):
                 logs[f"mariadb:{p.stem}"] = p
 
+    # Redis logs
+    if paths.REDIS_DIR.exists():
+        for p in paths.REDIS_DIR.glob("*.log"):
+            logs[f"redis:{p.stem}"] = p
+
     # PHP logs (look in ~/.ndev/php/<version>/ or ~/.ndev/run/ / temp)
     for v in php.list_installed():
         v_dir = paths.version_dir(v)
@@ -32,6 +37,7 @@ def get_available_logs() -> dict[str, Path]:
                 logs[f"php:{v}"] = log_candidate
 
     return logs
+
 
 
 def read_log_tail(log_path: Path, lines: int = 50) -> list[str]:

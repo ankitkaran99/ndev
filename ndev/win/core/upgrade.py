@@ -8,14 +8,16 @@ import json
 import re
 import shutil
 import subprocess
-import urllib.request
 import zipfile
 from dataclasses import dataclass
 from typing import Optional
 
-from . import mailpit as mailpit_core, paths, pma as pma_core, services, setup as setup_core
+import httpx
 
-USER_AGENT = "ndev/0.1.0"
+from . import mailpit as mailpit_core, paths, pma as pma_core, redis_core, services, setup as setup_core
+
+
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ndev/0.1.0"
 
 
 @dataclass
@@ -30,16 +32,21 @@ class ComponentInfo:
     error: Optional[str] = None
 
 
-def _http_get_json(url: str, timeout: int = 10) -> dict:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+def _http_get_json(url: str, timeout: int = 15) -> dict:
+    headers = {"User-Agent": USER_AGENT}
+    with httpx.Client(follow_redirects=True, timeout=timeout) as client:
+        resp = client.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
 
 
-def _http_get_text(url: str, timeout: int = 10) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", errors="ignore")
+def _http_get_text(url: str, timeout: int = 15) -> str:
+    headers = {"User-Agent": USER_AGENT}
+    with httpx.Client(follow_redirects=True, timeout=timeout) as client:
+        resp = client.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.text
+
 
 
 def _clean_ver(v: Optional[str]) -> str:
@@ -424,12 +431,16 @@ def get_composer_info() -> ComponentInfo:
     if installed:
         try:
             bat = paths.SHIM_DIR / "composer.bat"
-            res = subprocess.run([str(bat), "--version"], capture_output=True, text=True, timeout=10)
-            m = re.search(r"Composer (?:version )?(\d+\.\d+\.\d+)", res.stdout or res.stderr)
+            res = subprocess.run([str(bat), "--version", "--no-ansi"], capture_output=True, text=True, timeout=10)
+            raw = (res.stdout or "") + "\n" + (res.stderr or "")
+            # Strip ANSI escape sequences if any exist
+            clean_text = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", raw)
+            m = re.search(r"Composer\s+(?:version\s+)?(\d+\.\d+\.\d+)", clean_text, re.IGNORECASE)
             if m:
                 curr_ver = m.group(1)
         except Exception as e:
             err = str(e)
+
 
     try:
         data = _http_get_json("https://getcomposer.org/versions")
@@ -469,9 +480,67 @@ def upgrade_composer() -> tuple[bool, str]:
         return False, f"Composer upgrade failed: {e}"
 
 
+# 7. REDIS
+def get_redis_info() -> ComponentInfo:
+    installed = redis_core.is_installed()
+    curr_ver = None
+    latest_ver = None
+    err = None
+
+    if installed:
+        try:
+            res = subprocess.run([str(redis_core.server_exe()), "--version"], capture_output=True, text=True, timeout=5)
+            m = re.search(r"v=(\d+\.\d+\.\d+)", res.stdout or res.stderr)
+            if m:
+                curr_ver = m.group(1)
+        except Exception as e:
+            err = str(e)
+
+    try:
+        rel = _http_get_json("https://api.github.com/repos/redis-windows/redis-windows/releases/latest")
+        latest_ver = rel.get("tag_name", redis_core.DEFAULT_VERSION)
+    except Exception as e:
+        latest_ver = redis_core.DEFAULT_VERSION
+        if not err:
+            err = f"Could not query Redis release API: {e}"
+
+    update_avail = False
+    if curr_ver and latest_ver and _clean_ver(curr_ver) != _clean_ver(latest_ver):
+        update_avail = True
+
+    status = "Up-to-date"
+    if not installed:
+        status = "Not Installed"
+    elif update_avail:
+        status = f"Update Available ({curr_ver} -> {latest_ver})"
+
+    return ComponentInfo("redis", "Redis In-Memory Database", curr_ver, latest_ver, update_avail, installed, status, err)
+
+
+def upgrade_redis() -> tuple[bool, str]:
+    was_running = bool(redis_core.status())
+    if was_running:
+        redis_core.stop()
+
+    info = get_redis_info()
+    target_ver = info.latest_version or redis_core.DEFAULT_VERSION
+    try:
+        redis_core.install(version=target_ver)
+        if was_running:
+            redis_core.start()
+        return True, f"Redis upgraded successfully to {target_ver}."
+    except Exception as e:
+        if was_running:
+            try:
+                redis_core.start()
+            except Exception:
+                pass
+        return False, f"Redis upgrade failed: {e}"
+
+
 # ── UNIFIED API ─────────────────────────────────────────────────────────────
 
-COMPONENTS = ["nginx", "mailpit", "mariadb", "pma", "mkcert", "composer"]
+COMPONENTS = ["nginx", "mailpit", "mariadb", "pma", "redis", "mkcert", "composer"]
 
 
 def check_all() -> list[ComponentInfo]:
@@ -481,6 +550,7 @@ def check_all() -> list[ComponentInfo]:
         get_mailpit_info(),
         get_mariadb_info(),
         get_pma_info(),
+        get_redis_info(),
         get_mkcert_info(),
         get_composer_info(),
     ]
@@ -497,12 +567,15 @@ def upgrade_component(name: str) -> tuple[bool, str]:
         return upgrade_mariadb()
     elif name in ["pma", "phpmyadmin"]:
         return upgrade_pma()
+    elif name == "redis":
+        return upgrade_redis()
     elif name == "mkcert":
         return upgrade_mkcert()
     elif name == "composer":
         return upgrade_composer()
     else:
         return False, f"Unknown component '{name}'. Available: {', '.join(COMPONENTS)}"
+
 
 
 def upgrade_all() -> dict[str, tuple[bool, str]]:

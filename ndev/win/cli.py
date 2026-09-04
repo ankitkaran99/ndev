@@ -30,11 +30,13 @@ from .core import (
     paths,
     php,
     pma as pma_core,
+    redis_core,
     services,
     setup as setup_core,
     upgrade as upgrade_core,
     vhost as vhost_core,
 )
+
 from .core.elevate import is_admin
 
 console = Console()
@@ -1698,6 +1700,112 @@ def mailpit_launch(smtp_port, web_port):
 def mailpit_open_alias(smtp_port, web_port):
     """Alias for launch."""
     mailpit_launch.callback(smtp_port, web_port)
+
+
+# ---- Redis In-Memory Database (redis) --------------------------------------
+
+@main.group(name="redis", invoke_without_command=True)
+@click.pass_context
+def redis(ctx: click.Context):
+    """Manage local Redis database server (install, start, stop, restart, status, cli)."""
+    if ctx.invoked_subcommand is None:
+        st = redis_core.status()
+        if st:
+            console.print(f"[bold green]Redis is running[/bold green] (Port {st.get('port', 6379)}, PID {st['pid']})")
+        elif redis_core.is_installed():
+            console.print("[yellow]Redis is stopped.[/yellow] Run `ndev redis start` to start.")
+        else:
+            console.print("[yellow]Redis is not installed.[/yellow] Run `ndev redis install` to download.")
+
+
+@redis.command(name="install")
+@click.option("--version", default=redis_core.DEFAULT_VERSION, show_default=True, help="Redis version to install.")
+def redis_install(version: str):
+    """Download and install Redis for Windows."""
+    console.print(f"Installing Redis {version}...")
+    with console.status("[bold green]Downloading and extracting Redis...[/bold green]"):
+        try:
+            target = redis_core.install(version=version)
+            console.print(f"[bold green]✓ Redis installed successfully at {target}[/bold green]")
+        except Exception as e:
+            raise click.ClickException(str(e))
+
+
+@redis.command(name="start")
+@click.option("--port", default=redis_core.DEFAULT_PORT, show_default=True, help="Redis server port.")
+def redis_start(port: int):
+    """Start Redis server in background."""
+    if not redis_core.is_installed():
+        console.print("[yellow]Redis is not installed -- downloading now...[/yellow]")
+        with console.status("[bold green]Installing Redis...[/bold green]"):
+            try:
+                redis_core.install()
+            except Exception as e:
+                raise click.ClickException(str(e))
+
+    st = redis_core.status()
+    if st:
+        console.print(f"[yellow]Redis is already running on port {st.get('port', 6379)} (PID {st['pid']})[/yellow]")
+        return
+
+    try:
+        pid = redis_core.start(port=port)
+        console.print(f"[bold green]✓ Redis started on 127.0.0.1:{port} (PID {pid})[/bold green]")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@redis.command(name="stop")
+def redis_stop():
+    """Stop the running Redis server."""
+    st = redis_core.status()
+    if not st:
+        console.print("[yellow]Redis is not running.[/yellow]")
+        return
+    try:
+        redis_core.stop()
+        console.print("[bold green]✓ Redis stopped.[/bold green]")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@redis.command(name="restart")
+@click.option("--port", default=redis_core.DEFAULT_PORT, show_default=True, help="Redis server port.")
+def redis_restart(port: int):
+    """Restart Redis server."""
+    try:
+        pid = redis_core.restart(port=port)
+        console.print(f"[bold green]✓ Redis restarted on 127.0.0.1:{port} (PID {pid})[/bold green]")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@redis.command(name="status")
+def redis_status():
+    """Show Redis service status."""
+    st = redis_core.status()
+    if st:
+        console.print(f"[bold green]Running[/bold green]  Port {st.get('port', 6379)}  |  PID {st['pid']}")
+    else:
+        console.print("[bold red]Stopped.[/bold red]")
+        if not redis_core.is_installed():
+            console.print("[yellow]  (not installed - run `ndev redis install`)[/yellow]")
+
+
+@redis.command(name="cli")
+@click.option("--port", default=redis_core.DEFAULT_PORT, show_default=True)
+def redis_cli(port: int):
+    """Launch interactive redis-cli terminal."""
+    if not redis_core.is_installed():
+        raise click.ClickException("Redis is not installed. Run `ndev redis install` first.")
+    
+    cli = redis_core.cli_exe()
+    if not cli.exists():
+        raise click.ClickException(f"redis-cli.exe not found at {cli}")
+    
+    import subprocess
+    subprocess.run([str(cli), "-p", str(port)])
+
 
 
 # ---- ngrok Tunneling (grok / tunnel / share) --------------------------------
