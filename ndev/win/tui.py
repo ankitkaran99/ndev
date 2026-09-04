@@ -1093,7 +1093,19 @@ class NdevDashboard(App):
 
             self.log_message(f"[bold cyan]Downloading PHP {rel.version} from {rel.zip_url}...[/bold cyan]")
             self.notify(f"Downloading PHP {rel.version}...", severity="information")
-            zip_path = await asyncio.to_thread(php.download_release, rel)
+
+            last_pct = -1
+            def _on_progress(downloaded: int, total: int) -> None:
+                nonlocal last_pct
+                if total > 0:
+                    pct = int(downloaded * 100 / total)
+                    if pct != last_pct and pct % 20 == 0:
+                        last_pct = pct
+                        mb_down = downloaded / (1024 * 1024)
+                        mb_tot = total / (1024 * 1024)
+                        self.log_message(f"  ↳ Downloaded {mb_down:.1f} MB / {mb_tot:.1f} MB ({pct}%)")
+
+            zip_path = await asyncio.to_thread(php.download_release, rel, progress_callback=_on_progress)
 
             self.log_message(f"[bold cyan]Extracting and configuring PHP {rel.version} in ~/.ndev/php/{rel.version}...[/bold cyan]")
             dest = await asyncio.to_thread(php.install, rel.version, zip_path)

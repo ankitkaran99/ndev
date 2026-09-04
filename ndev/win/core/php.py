@@ -185,21 +185,28 @@ def resolve_release(version_query: str, arch: str = "x64", thread_safe: bool = T
     return None
 
 
-def download_release(release: PhpRelease) -> Path:
+def download_release(release: PhpRelease, progress_callback=None) -> Path:
     paths.ensure_dirs()
     dest = paths.DOWNLOADS_DIR / Path(release.zip_url).name
     if dest.exists() and dest.stat().st_size > 0:
+        if progress_callback:
+            progress_callback(dest.stat().st_size, dest.stat().st_size)
         return dest
     tmp = dest.with_suffix(".part")
     req = urllib.request.Request(release.zip_url, headers={"User-Agent": "ndev/0.1.0"})
     try:
         with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
+            total_size = int(resp.headers.get("Content-Length", 0))
+            downloaded = 0
             chunk_size = 65536
             while True:
                 chunk = resp.read(chunk_size)
                 if not chunk:
                     break
                 f.write(chunk)
+                downloaded += len(chunk)
+                if progress_callback:
+                    progress_callback(downloaded, total_size)
         if tmp.exists() and tmp.stat().st_size > 0:
             if dest.exists():
                 dest.unlink()
