@@ -241,11 +241,13 @@ ndev ui
 # Aliases: ndev tui, ndev dashboard
 ```
 
-* **Live Status Dashboard**: Real-time health, PIDs, sockets/ports for Nginx, MariaDB, phpMyAdmin, Mailpit, and all PHP instances.
-* **Quick Batch Actions**: One-click **Start All**, **Stop All**, **Restart All**, and **Reload Nginx**.
+* **Live Status Dashboard**: Real-time health, PIDs, sockets/ports for Nginx, MariaDB, PMA (phpMyAdmin), Mailpit, and all PHP instances.
+* **One-Click Component Setup & Upgrades**: Install uninstalled services (**PMA**, **Mailpit**, **Nginx**, **MariaDB**, **mkcert**, **Composer**) or check/upgrade stack releases with single-click UI actions.
+* **Interactive Virtual Host Manager**: Create new virtual hosts (`＋ Create VHost`) with automatic mkcert SSL and docroot binding via modal dialog, or delete existing vhosts with full cleanup.
+* **PHP Runtime Lifecycle**: Install new PHP runtimes (`＋ Install PHP`) from upstream releases, uninstall versions (`✖ Uninstall Selected`), switch active CLI version, or start/stop individual FastCGI pools.
+* **Quick Batch Actions**: One-click **Start All**, **Stop All**, **Restart All**, and **Reload Nginx** from the persistent sidebar.
 * **On-the-fly CLI PHP Switcher**: Change globally active CLI PHP version instantly via dropdown.
 * **Integrated Log Tail Viewer**: Select and inspect live tails for Nginx, MariaDB, PHP, and Virtual Host logs.
-* **Virtual Host Navigator**: View local vhost mappings, docroots, SSL status, and open sites directly in your default browser.
 * **Asynchronous & Non-Blocking**: Built with Textual workers — all background actions and I/O polling run smoothly without freezing the UI.
 
 ---

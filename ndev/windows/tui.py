@@ -15,11 +15,14 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
+    Checkbox,
     DataTable,
     Footer,
     Header,
+    Input,
     Label,
     RichLog,
     Select,
@@ -28,7 +31,7 @@ from textual.widgets import (
     TabPane,
 )
 
-from .core import fcgi, logs, mailpit, paths, php, pma, services, upgrade as upgrade_core, vhost
+from .core import fcgi, logs, mailpit, paths, php, pma, services, setup as setup_core, upgrade as upgrade_core, vhost
 
 
 # ── CSS STYLESHEET ────────────────────────────────────────────────────────────
@@ -37,6 +40,48 @@ TUI_CSS = """
 Screen {
     background: $surface;
     color: $text;
+}
+
+ModalScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.75);
+}
+
+#modal-dialog {
+    width: 65;
+    height: auto;
+    max-height: 90%;
+    background: $surface;
+    border: thick $primary;
+    padding: 1 2;
+}
+
+#modal-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+    text-align: center;
+}
+
+.modal-label {
+    text-style: bold;
+    margin-top: 1;
+    margin-bottom: 0;
+}
+
+.modal-input {
+    margin-bottom: 1;
+}
+
+#modal-buttons {
+    layout: horizontal;
+    height: auto;
+    margin-top: 1;
+    align: right middle;
+}
+
+#modal-buttons Button {
+    margin-left: 1;
 }
 
 #app-grid {
@@ -147,6 +192,122 @@ DataTable {
 """
 
 
+# ── MODAL DIALOG SCREENS ──────────────────────────────────────────────────────
+
+class CreateVhostModal(ModalScreen[Optional[dict]]):
+    """Modal dialog to create a new virtual host with local SSL."""
+
+    def __init__(self, installed_phps: list[str], default_php: Optional[str] = None) -> None:
+        super().__init__()
+        self.installed_phps = installed_phps
+        self.default_php = default_php or (installed_phps[0] if installed_phps else "8.4")
+
+    def compose(self) -> ComposeResult:
+        php_options = [(v, v) for v in self.installed_phps] if self.installed_phps else [(self.default_php, self.default_php)]
+        initial_php = self.default_php if self.default_php in [o[1] for o in php_options] else (php_options[0][1] if php_options else "8.4")
+
+        with Vertical(id="modal-dialog"):
+            yield Label("🌐 Create New Virtual Host", id="modal-title")
+            yield Label("Domain Name (e.g. app.test):", classes="modal-label")
+            yield Input(placeholder="app.test", id="input-vhost-domain", classes="modal-input")
+            yield Label("Document Root Directory:", classes="modal-label")
+            yield Input(placeholder=r"C:\Projects\app (or public folder)", id="input-vhost-root", classes="modal-input")
+            yield Label("PHP Version:", classes="modal-label")
+            yield Select(php_options, value=initial_php, id="select-vhost-php", classes="modal-input")
+            yield Checkbox("Enable Local SSL (HTTPS with mkcert)", value=True, id="chk-vhost-ssl")
+            with Horizontal(id="modal-buttons"):
+                yield Button("Create VHost", variant="success", id="btn-modal-create")
+                yield Button("Cancel", variant="default", id="btn-modal-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-modal-create":
+            domain = self.query_one("#input-vhost-domain", Input).value.strip()
+            root = self.query_one("#input-vhost-root", Input).value.strip()
+            php_val = self.query_one("#select-vhost-php", Select).value
+            php_ver = str(php_val) if (php_val is not None and php_val != Select.BLANK) else self.default_php
+            ssl = self.query_one("#chk-vhost-ssl", Checkbox).value
+
+            if not domain:
+                self.notify("Domain name is required.", severity="error")
+                return
+            if not root:
+                self.notify("Document root directory is required.", severity="error")
+                return
+
+            self.dismiss({
+                "domain": domain,
+                "root": root,
+                "php": php_ver,
+                "ssl": bool(ssl),
+            })
+        else:
+            self.dismiss(None)
+
+
+class ConfirmActionModal(ModalScreen[bool]):
+    """Generic confirmation dialog for deletions and uninstalls."""
+
+    def __init__(self, title: str, message: str, confirm_label: str = "Confirm", variant: str = "error") -> None:
+        super().__init__()
+        self.title_text = title
+        self.message_text = message
+        self.confirm_label = confirm_label
+        self.btn_variant = variant
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="modal-dialog"):
+            yield Label(self.title_text, id="modal-title")
+            yield Label(self.message_text, classes="modal-label")
+            with Horizontal(id="modal-buttons"):
+                yield Button(self.confirm_label, variant=self.btn_variant, id="btn-modal-confirm")
+                yield Button("Cancel", variant="default", id="btn-modal-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-modal-confirm":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
+
+class InstallPhpModal(ModalScreen[Optional[dict]]):
+    """Modal dialog to select and install a PHP runtime."""
+
+    def __init__(self, popular_versions: Optional[list[str]] = None) -> None:
+        super().__init__()
+        self.popular_versions = popular_versions or ["8.4.25", "8.3.17", "8.2.27", "8.1.31", "7.4.33"]
+
+    def compose(self) -> ComposeResult:
+        opts = [(v, v) for v in self.popular_versions]
+        default_v = opts[0][1] if opts else "8.4.25"
+
+        with Vertical(id="modal-dialog"):
+            yield Label("🐘 Install PHP Runtime", id="modal-title")
+            yield Label("Select Upstream PHP Release:", classes="modal-label")
+            yield Select(opts, value=default_v, id="select-php-ver", classes="modal-input")
+            yield Label("Or specify Custom Version (e.g. 8.4.25):", classes="modal-label")
+            yield Input(placeholder="Leave blank to use selected release above", id="input-custom-ver", classes="modal-input")
+            yield Checkbox("Thread-Safe (TS, recommended for FastCGI)", value=True, id="chk-php-ts")
+            with Horizontal(id="modal-buttons"):
+                yield Button("Download & Install", variant="success", id="btn-modal-install")
+                yield Button("Cancel", variant="default", id="btn-modal-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-modal-install":
+            custom = self.query_one("#input-custom-ver", Input).value.strip()
+            sel_val = self.query_one("#select-php-ver", Select).value
+            selected = str(sel_val) if (sel_val is not None and sel_val != Select.BLANK) else "8.4.25"
+            version = custom if custom else selected
+            is_ts = self.query_one("#chk-php-ts", Checkbox).value
+
+            self.dismiss({
+                "version": version,
+                "thread_safe": bool(is_ts),
+                "nts": not bool(is_ts),
+            })
+        else:
+            self.dismiss(None)
+
+
 # ── MAIN APPLICATION ──────────────────────────────────────────────────────────
 
 class NdevDashboard(App):
@@ -165,6 +326,8 @@ class NdevDashboard(App):
         Binding("l", "reload_nginx", "Reload Nginx"),
         Binding("u", "check_upgrades", "Check Upgrades"),
         Binding("U", "upgrade_stack", "Upgrade Stack"),
+        Binding("v", "create_vhost", "Create VHost"),
+        Binding("i", "install_php", "Install PHP"),
     ]
 
     def __init__(self) -> None:
@@ -186,6 +349,8 @@ class NdevDashboard(App):
                     yield Button("⏹ Stop All", id="btn-stop-all", variant="error", classes="sidebar-btn")
                     yield Button("🔄 Restart All", id="btn-restart-all", variant="warning", classes="sidebar-btn")
                     yield Button("⚡ Reload Nginx", id="btn-reload-nginx", variant="primary", classes="sidebar-btn")
+                    yield Button("🌐 New Virtual Host", id="btn-sidebar-create-vhost", variant="success", classes="sidebar-btn")
+                    yield Button("🐘 Install PHP", id="btn-sidebar-install-php", variant="success", classes="sidebar-btn")
                     yield Button("🔍 Check Upgrades", id="btn-check-upgrades", variant="default", classes="sidebar-btn")
                     yield Button("🚀 Upgrade Stack", id="btn-upgrade-stack", variant="primary", classes="sidebar-btn")
 
@@ -202,7 +367,7 @@ class NdevDashboard(App):
                     yield Label("[bold]🌐 Ports Reference[/bold]")
                     yield Label("• Nginx: 80 / 443 (SSL)")
                     yield Label("• MariaDB: 3306")
-                    yield Label("• phpMyAdmin: 8080")
+                    yield Label("• phpMyAdmin (PMA): 8080")
                     yield Label("• Mailpit Web: 8025")
                     yield Label("• Mailpit SMTP: 1025")
 
@@ -215,18 +380,25 @@ class NdevDashboard(App):
                             yield Button("Start Selected", id="btn-svc-start", variant="success")
                             yield Button("Stop Selected", id="btn-svc-stop", variant="error")
                             yield Button("Restart Selected", id="btn-svc-restart", variant="warning")
+                            yield Button("Install Selected", id="btn-svc-install", variant="success")
                             yield Button("Open Web UI", id="btn-svc-open", variant="primary")
                             yield Button("Check Upgrades", id="btn-svc-check-upgrades", variant="default")
 
                     with TabPane("🌐 Virtual Hosts", id="tab-vhosts"):
                         yield DataTable(id="table-vhosts", cursor_type="row", zebra_stripes=True)
                         with Horizontal(classes="tab-action-bar"):
-                            yield Button("Open in Browser", id="btn-vhost-open", variant="primary")
+                            yield Button("＋ Create VHost", id="btn-vhost-create", variant="success")
+                            yield Button("✖ Delete Selected", id="btn-vhost-delete", variant="error")
+                            yield Button("🌐 Open in Browser", id="btn-vhost-open", variant="primary")
 
                     with TabPane("🐘 PHP Runtimes", id="tab-php"):
                         yield DataTable(id="table-php", cursor_type="row", zebra_stripes=True)
                         with Horizontal(classes="tab-action-bar"):
-                            yield Button("Set as Active CLI", id="btn-php-set-active", variant="primary")
+                            yield Button("＋ Install PHP", id="btn-php-install", variant="success")
+                            yield Button("✖ Uninstall Selected", id="btn-php-uninstall", variant="error")
+                            yield Button("⭐ Set Active CLI", id="btn-php-set-active", variant="primary")
+                            yield Button("▶ Start Pool", id="btn-php-pool-start", variant="default")
+                            yield Button("⏹ Stop Pool", id="btn-php-pool-stop", variant="default")
 
                     with TabPane("📋 Live Console / Logs", id="tab-logs"):
                         yield RichLog(id="console-log", highlight=True, markup=True)
@@ -700,6 +872,20 @@ class NdevDashboard(App):
             self.action_check_upgrades()
         elif btn_id == "btn-upgrade-stack":
             self.action_upgrade_stack()
+        elif btn_id in ["btn-sidebar-create-vhost", "btn-vhost-create"]:
+            self.action_create_vhost()
+        elif btn_id == "btn-vhost-delete":
+            self.action_delete_vhost()
+        elif btn_id in ["btn-sidebar-install-php", "btn-php-install"]:
+            self.action_install_php()
+        elif btn_id == "btn-php-uninstall":
+            self.action_uninstall_php()
+        elif btn_id == "btn-php-pool-start":
+            self._handle_php_pool_action("start")
+        elif btn_id == "btn-php-pool-stop":
+            self._handle_php_pool_action("stop")
+        elif btn_id == "btn-svc-install":
+            self._handle_selected_service_install()
         elif btn_id == "btn-tail-log":
             self._handle_tail_log()
         elif btn_id == "btn-clear-console":
@@ -716,6 +902,198 @@ class NdevDashboard(App):
             self._handle_selected_vhost_open()
         elif btn_id == "btn-php-set-active":
             self._handle_php_set_active()
+
+    # ── VHOST, PHP & SERVICE INSTALL ACTIONS ──────────────────────────────────
+
+    def action_create_vhost(self) -> None:
+        """Open modal dialog to create a new virtual host."""
+        installed = php.list_installed()
+        active = php.get_current_version()
+
+        def _on_modal_result(res: Optional[dict]) -> None:
+            if res:
+                self._create_vhost_worker(res["domain"], res["root"], res["php"], res["ssl"])
+
+        self.push_screen(CreateVhostModal(installed, active), _on_modal_result)
+
+    @work(exclusive=True)
+    async def _create_vhost_worker(self, domain: str, root: str, php_ver: str, ssl: bool) -> None:
+        self.query_one(TabbedContent).active = "tab-logs"
+        self.log_message(f"[bold blue]Creating virtual host '{domain}' (PHP {php_ver}, SSL={ssl})...[/bold blue]")
+        self.notify(f"Creating vhost {domain}...", severity="information")
+
+        try:
+            conf_path = await asyncio.to_thread(vhost.create_vhost, domain, root, php_ver, ssl=ssl, auto_start_pool=True)
+            self.log_message(f"[bold green]✓ Virtual host created successfully: {conf_path}[/bold green]")
+            proto = "https" if ssl else "http"
+            self.log_message(f"  • URL: [link={proto}://{domain}]{proto}://{domain}[/link]")
+            self.log_message(f"  • Root: {root}")
+            self.notify(f"Virtual host {domain} created!", severity="information")
+            self.query_one(TabbedContent).active = "tab-vhosts"
+            self._refresh_all_data(full_rebuild=True)
+        except Exception as e:
+            self.log_message(f"[bold red]✗ Failed to create virtual host {domain}: {e}[/bold red]")
+            self.notify(f"VHost creation failed: {e}", severity="error")
+
+    def action_delete_vhost(self) -> None:
+        """Prompt to delete the currently selected virtual host."""
+        vhost_table = self.query_one("#table-vhosts", DataTable)
+        if vhost_table.cursor_row is None or vhost_table.row_count == 0:
+            self.notify("Please select a virtual host row to delete.", severity="warning")
+            return
+
+        row_key = vhost_table.coordinate_to_cell_key((vhost_table.cursor_row, 0)).row_key
+        domain = str(row_key.value)
+
+        def _on_confirm(confirmed: bool) -> None:
+            if confirmed:
+                self._delete_vhost_worker(domain)
+
+        msg = f"Are you sure you want to delete virtual host '{domain}'?\n\nThis will remove its Nginx configuration, SSL certificates, and hosts file entry."
+        self.push_screen(ConfirmActionModal("Delete Virtual Host", msg, confirm_label="Delete VHost", variant="error"), _on_confirm)
+
+    @work(exclusive=True)
+    async def _delete_vhost_worker(self, domain: str) -> None:
+        self.log_message(f"[bold yellow]Deleting virtual host '{domain}'...[/bold yellow]")
+        self.notify(f"Deleting vhost {domain}...", severity="information")
+
+        try:
+            ok = await asyncio.to_thread(vhost.remove_vhost, domain)
+            if ok:
+                self.log_message(f"[bold green]✓ Virtual host '{domain}' deleted successfully.[/bold green]")
+                self.notify(f"Virtual host {domain} deleted.", severity="information")
+            else:
+                self.log_message(f"[yellow]Virtual host '{domain}' was not found or already removed.[/yellow]")
+            self._refresh_all_data(full_rebuild=True)
+        except Exception as e:
+            self.log_message(f"[bold red]✗ Failed to delete virtual host {domain}: {e}[/bold red]")
+            self.notify(f"Delete failed: {e}", severity="error")
+
+    def action_install_php(self) -> None:
+        """Open modal dialog to download and install a new PHP runtime."""
+        def _on_modal_result(res: Optional[dict]) -> None:
+            if res:
+                self._install_php_worker(res["version"], res.get("thread_safe", True))
+
+        self.push_screen(InstallPhpModal(), _on_modal_result)
+
+    @work(exclusive=True)
+    async def _install_php_worker(self, version_query: str, thread_safe: bool) -> None:
+        self.query_one(TabbedContent).active = "tab-logs"
+        self.log_message("[bold blue]═══════════════════════════════════════════════════[/bold blue]")
+        self.log_message(f"[bold blue]🐘 Resolving PHP release '{version_query}' (TS={thread_safe})...[/bold blue]")
+        self.notify(f"Resolving PHP {version_query}...", severity="information")
+
+        try:
+            rel = await asyncio.to_thread(php.resolve_release, version_query, thread_safe=thread_safe)
+            if not rel:
+                raise ValueError(f"Could not find matching Windows PHP build for '{version_query}'")
+
+            self.log_message(f"[bold cyan]Downloading PHP {rel.version} from {rel.zip_url}...[/bold cyan]")
+            self.notify(f"Downloading PHP {rel.version}...", severity="information")
+            zip_path = await asyncio.to_thread(php.download_release, rel)
+
+            self.log_message(f"[bold cyan]Extracting and configuring PHP {rel.version} in ~/.ndev/php/{rel.version}...[/bold cyan]")
+            dest = await asyncio.to_thread(php.install, rel.version, zip_path)
+            self.log_message(f"[bold green]✓ PHP {rel.version} installed successfully at {dest}[/bold green]")
+            self.notify(f"PHP {rel.version} installed!", severity="information")
+            self.query_one(TabbedContent).active = "tab-php"
+            self._refresh_all_data(full_rebuild=True)
+        except Exception as e:
+            self.log_message(f"[bold red]✗ PHP installation failed: {e}[/bold red]")
+            self.notify(f"Install failed: {e}", severity="error")
+
+    def action_uninstall_php(self) -> None:
+        """Prompt to uninstall the currently selected PHP runtime."""
+        php_table = self.query_one("#table-php", DataTable)
+        if php_table.cursor_row is None or php_table.row_count == 0:
+            self.notify("Please select a PHP version row to uninstall.", severity="warning")
+            return
+
+        row_key = php_table.coordinate_to_cell_key((php_table.cursor_row, 0)).row_key
+        ver = str(row_key.value)
+
+        def _on_confirm(confirmed: bool) -> None:
+            if confirmed:
+                self._uninstall_php_worker(ver)
+
+        msg = f"Are you sure you want to uninstall PHP {ver}?\n\nThis will stop its FastCGI worker pool and completely remove ~/.ndev/php/{ver}."
+        self.push_screen(ConfirmActionModal("Uninstall PHP Runtime", msg, confirm_label="Uninstall PHP", variant="error"), _on_confirm)
+
+    @work(exclusive=True)
+    async def _uninstall_php_worker(self, version: str) -> None:
+        self.log_message(f"[bold yellow]Uninstalling PHP {version}...[/bold yellow]")
+        self.notify(f"Uninstalling PHP {version}...", severity="information")
+
+        try:
+            await asyncio.to_thread(php.uninstall, version)
+            self.log_message(f"[bold green]✓ PHP {version} uninstalled successfully.[/bold green]")
+            self.notify(f"PHP {version} uninstalled.", severity="information")
+            self._refresh_all_data(full_rebuild=True)
+        except Exception as e:
+            self.log_message(f"[bold red]✗ Failed to uninstall PHP {version}: {e}[/bold red]")
+            self.notify(f"Uninstall failed: {e}", severity="error")
+
+    def _handle_php_pool_action(self, action: str) -> None:
+        """Start or stop the FastCGI pool for the selected PHP version."""
+        php_table = self.query_one("#table-php", DataTable)
+        if php_table.cursor_row is None or php_table.row_count == 0:
+            self.notify("Please select a PHP version row.", severity="warning")
+            return
+
+        row_key = php_table.coordinate_to_cell_key((php_table.cursor_row, 0)).row_key
+        ver = str(row_key.value)
+        self._selected_service_key = f"php:{ver}"
+        self._handle_selected_service_action(action)
+
+    def _handle_selected_service_install(self) -> None:
+        """Install or setup the selected service (PMA, Mailpit, Nginx, MariaDB, mkcert, Composer)."""
+        svc_table = self.query_one("#table-services", DataTable)
+        if svc_table.cursor_row is not None and svc_table.row_count > 0:
+            row_key = svc_table.coordinate_to_cell_key((svc_table.cursor_row, 0)).row_key
+            self._selected_service_key = str(row_key.value)
+
+        key = self._selected_service_key
+        if not key:
+            self.notify("Please select a service row from the table.", severity="warning")
+            return
+
+        self._install_service_worker(key)
+
+    @work(exclusive=True)
+    async def _install_service_worker(self, key: str) -> None:
+        self.query_one(TabbedContent).active = "tab-logs"
+        self.log_message(f"[bold blue]Installing/setting up component '{key}'...[/bold blue]")
+        self.notify(f"Installing {key}...", severity="information")
+
+        def _do() -> None:
+            if key == "pma":
+                pma.install()
+            elif key == "mailpit":
+                mailpit.install()
+            elif key == "nginx":
+                setup_core.install_nginx()
+            elif key == "mariadb":
+                setup_core.install_mariadb()
+            elif key == "mkcert":
+                setup_core.install_mkcert()
+            elif key == "composer":
+                setup_core.install_composer()
+            elif key.startswith("php:"):
+                ver = key.split(":", 1)[1]
+                rel = php.resolve_release(ver)
+                if rel:
+                    zp = php.download_release(rel)
+                    php.install(rel.version, zp)
+
+        try:
+            await asyncio.to_thread(_do)
+            self.log_message(f"[bold green]✓ Component '{key}' installed and configured successfully![/bold green]")
+            self.notify(f"{key} installed successfully!", severity="information")
+            self._refresh_all_data(full_rebuild=True)
+        except Exception as e:
+            self.log_message(f"[bold red]✗ Failed to install {key}: {e}[/bold red]")
+            self.notify(f"Installation failed: {e}", severity="error")
 
     @work(exclusive=True)
     async def on_select_changed(self, event: Select.Changed) -> None:
