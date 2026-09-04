@@ -130,15 +130,17 @@ ndev/
 
 ### Standard Installation via PyPI
 
-Install `ndev` directly using `pip` or `pipx` (recommended for standalone CLI tools):
+Install `ndev-stack` directly using `pip` or `pipx` (recommended for standalone CLI tools):
 
 ```bash
 # Using pip
-pip install ndev
+pip install ndev-stack
 
 # Or using pipx (isolated application environment)
-pipx install ndev
+pipx install ndev-stack
 ```
+
+> **Note**: The package is published on PyPI as `ndev-stack`, but installs the global commands `ndev`, `ndev-win`, and `ndev-linux`.
 
 ---
 

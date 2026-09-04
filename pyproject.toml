@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ndev"
+name = "ndev-stack"
 version = "0.1.0"
 description = "Cross-platform developer stack manager for PHP, FastCGI/PHP-FPM, MariaDB, Nginx, SSL, and Mailpit on Linux and Windows"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-    { name = "Antigravity Dev Team" }
+    { name = "Ankit Karan", email = "ankit.karan99@gmail.com" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -29,6 +29,12 @@ dependencies = [
 
 [project.scripts]
 ndev = "ndev.main:main"
+ndev-win = "ndev.win.cli:app"
+ndev-linux = "ndev.linux.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/ankitkaran99/ndev"
+Repository = "https://github.com/ankitkaran99/ndev"
 
 [tool.setuptools.packages.find]
 where = ["."]
