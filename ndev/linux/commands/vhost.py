@@ -197,7 +197,7 @@ def vhost_cmd(
         certs_dir = get_user_ndev_dir() / "certs"
         try:
             cert_path, key_path = generate_local_cert(domain, certs_dir)
-            console.print(f"Generated SSL Certificates:")
+            console.print("Generated SSL Certificates:")
             console.print(f"  Cert: {cert_path}")
             console.print(f"  Key : {key_path}")
         except Exception as e:
@@ -332,7 +332,7 @@ server {{
             
         subprocess.run(["systemctl", "reload", "nginx"], check=True)
         
-        console.print(f"\n[bold green]VHost Created Successfully[/bold green]")
+        console.print("\n[bold green]VHost Created Successfully[/bold green]")
         console.print("--------------------------")
         console.print(f"Domain      : {domain}")
         console.print(f"Root        : {root}")

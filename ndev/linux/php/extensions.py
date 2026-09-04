@@ -6,7 +6,6 @@ from pathlib import Path
 from ndev.common.constants import PHP_DIR, DOWNLOADS_DIR, BUILDS_DIR
 from ndev.linux.chroot.manager import SandboxManager
 from ndev.common.logger import logger
-from ndev.common.utils import run_command
 
 def get_php_binaries(version: str) -> tuple[Path, Path, Path]:
     """Get the path to php, phpize, and php-config binaries for a version."""

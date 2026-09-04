@@ -1,5 +1,4 @@
 import typer
-from ndev.common.constants import CURRENT_LINK
 from ndev.linux.runtime.fpm import reload_fpm
 from ndev.common.logger import logger
 

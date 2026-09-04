@@ -3,7 +3,6 @@ MariaDB database/user management, shelling out to mysql.exe and mysqldump.exe.
 """
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from pathlib import Path

@@ -1,4 +1,3 @@
-from pathlib import Path
 from ndev.linux.php.resolver import resolve_version
 from ndev.linux.php.downloader import download_php_source
 from ndev.linux.php.builder import build_php

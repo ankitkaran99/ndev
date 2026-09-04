@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
@@ -940,7 +939,7 @@ def ctl(ctx: click.Context):
             except Exception as e:
                 console.print(f"[bold red]✗ PHP {pv} FastCGI pool error: {e}[/bold red]")
 
-        console.print(f"\n[bold green]All requested service operations completed.[/bold green]")
+        console.print("\n[bold green]All requested service operations completed.[/bold green]")
 
 
 
@@ -1838,14 +1837,14 @@ def upgrade(component: Optional[str], check: bool):
     console.print("\n[bold blue]ndev Stack Component Updates & Upgrades[/bold blue]")
 
     with console.status("[bold green]Checking component versions...[/bold green]"):
+        all_components = upgrade_core.check_all()
         if component and component.lower() != "all":
-            all_infos = [upgrade_core.check_all()]
             # Filter matching component
-            infos = [info for info in upgrade_core.check_all() if info.name == component.lower() or component.lower() in info.name]
+            infos = [info for info in all_components if info.name == component.lower() or component.lower() in info.name]
             if not infos:
                 raise click.ClickException(f"Unknown component '{component}'. Available: {', '.join(upgrade_core.COMPONENTS)}")
         else:
-            infos = upgrade_core.check_all()
+            infos = all_components
 
     table = Table(title="Stack Components Version Status", show_header=True, header_style="bold cyan")
     table.add_column("Component", style="bold", min_width=20)

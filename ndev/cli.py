@@ -5,7 +5,6 @@ and dispatches commands to the appropriate platform runtime engine.
 """
 from __future__ import annotations
 
-import platform
 import sys
 
 # Ensure UTF-8 output on Windows consoles to prevent glyph corruption
@@ -18,7 +17,7 @@ if sys.platform == "win32":
             pass
 
 
-from ndev.main import main, app
+from ndev.main import main
 
 if __name__ == "__main__":
     main()

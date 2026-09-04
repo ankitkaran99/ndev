@@ -11,10 +11,9 @@ import subprocess
 import urllib.request
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 
-from . import fcgi, logs, mailpit as mailpit_core, paths, pma as pma_core, services, setup as setup_core
+from . import mailpit as mailpit_core, paths, pma as pma_core, services, setup as setup_core
 
 USER_AGENT = "ndev/0.1.0"
 
@@ -408,7 +407,7 @@ def upgrade_mkcert() -> tuple[bool, str]:
     info = get_mkcert_info()
     target_ver = _clean_ver(info.latest_version) or setup_core.DEFAULT_MKCERT_VERSION
     try:
-        dest = setup_core.install_mkcert(version=target_ver)
+        setup_core.install_mkcert(version=target_ver)
         return True, f"mkcert upgraded successfully to v{target_ver}."
     except Exception as e:
         return False, f"mkcert upgrade failed: {e}"

@@ -1,6 +1,4 @@
-import os
 import tomllib
-from pathlib import Path
 from ndev.common.constants import (
     NDEV_DIR, CACHE_DIR, DOWNLOADS_DIR, BUILDS_DIR, CHROOT_DIR,
     LOGS_DIR, RUN_DIR, PHP_DIR, CERTS_DIR, CONFIG_FILE, DEFAULT_CONFIG

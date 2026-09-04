@@ -4,7 +4,6 @@ Log viewing utilities for ndev-win.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from . import paths, php
 

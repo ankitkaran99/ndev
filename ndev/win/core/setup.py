@@ -5,7 +5,6 @@ MariaDB, mkcert, ngrok, and Composer.
 from __future__ import annotations
 
 import shutil
-import stat
 import subprocess
 import urllib.request
 import zipfile

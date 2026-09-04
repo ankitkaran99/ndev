@@ -1,4 +1,3 @@
-import httpx
 from packaging.version import parse as parse_version
 from ndev.common.github import fetch_releases
 from ndev.common.logger import logger

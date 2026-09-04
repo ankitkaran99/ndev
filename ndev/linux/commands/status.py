@@ -1,7 +1,6 @@
 import typer
 from rich.console import Console
 from rich.table import Table
-from ndev.common.constants import CURRENT_LINK
 from ndev.linux.runtime.fpm import get_fpm_status
 from ndev.common.logger import logger
 

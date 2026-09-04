@@ -1,5 +1,3 @@
-import typer
-from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 from ndev.common.constants import PHP_DIR, CURRENT_LINK

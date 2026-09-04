@@ -1,4 +1,3 @@
-import typer
 from packaging.version import parse as parse_version
 from rich.console import Console
 from rich.table import Table

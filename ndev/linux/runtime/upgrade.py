@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from ndev.common.constants import NDEV_DIR, LOGS_DIR
+from ndev.common.constants import NDEV_DIR
 from ndev.linux.runtime import mailpit as mailpit_rt, pma as pma_rt
 
 USER_AGENT = "ndev/0.1.0"
@@ -217,6 +217,7 @@ def get_pma_info() -> ComponentInfo:
     pma_st = pma_rt.get_pma_status()
     installed = pma_st.get("installed", False)
     curr_ver = None
+    err = None
     pma_dir = pma_rt.PMA_DIR
     if installed and pma_dir.exists():
         for f in pma_dir.glob("RELEASE-DATE-*"):
@@ -230,8 +231,7 @@ def get_pma_info() -> ComponentInfo:
         latest_ver = data.get("version", pma_rt.DEFAULT_PMA_VERSION)
     except Exception as e:
         latest_ver = pma_rt.DEFAULT_PMA_VERSION
-        if not err:
-            err = f"Could not query PMA version API: {e}"
+        err = f"Could not query PMA version API: {e}"
 
     update_avail = False
     if curr_ver and latest_ver and _clean_ver(curr_ver) != _clean_ver(latest_ver):

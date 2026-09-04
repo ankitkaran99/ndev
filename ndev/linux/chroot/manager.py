@@ -1,8 +1,5 @@
 import os
-import subprocess
-from pathlib import Path
 from ndev.common.constants import CHROOT_DIR, NDEV_DIR
-from ndev.common.logger import logger
 from ndev.common.utils import run_command
 
 class SandboxManager:

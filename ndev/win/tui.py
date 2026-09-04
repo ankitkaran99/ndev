@@ -26,7 +26,6 @@ from textual.widgets import (
     Label,
     RichLog,
     Select,
-    Static,
     TabbedContent,
     TabPane,
 )

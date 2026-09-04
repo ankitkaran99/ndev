@@ -1,10 +1,8 @@
 import shutil
 import subprocess
-import typer
 from rich.console import Console
 from rich.table import Table
 from ndev.common.constants import NDEV_DIR, CONFIG_FILE
-from ndev.common.logger import logger
 
 console = Console()
 

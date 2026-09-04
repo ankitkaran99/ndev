@@ -4,7 +4,6 @@ PECL extension manager for Windows (precompiled DLL downloads from downloads.php
 from __future__ import annotations
 
 import re
-import shutil
 import urllib.error
 import urllib.request
 import zipfile

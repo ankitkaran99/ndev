@@ -43,9 +43,9 @@ def main() -> None:
 
 # Dynamic application alias
 if is_windows():
-    from ndev.win.cli import main as app
+    pass
 else:
-    from ndev.linux.cli import app
+    pass
 
 
 if __name__ == "__main__":

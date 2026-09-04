@@ -1,4 +1,3 @@
-import re
 import tempfile
 import subprocess
 import shutil

@@ -1,4 +1,3 @@
-import typer
 from ndev.common.constants import CURRENT_LINK
 from ndev.common.logger import logger
 

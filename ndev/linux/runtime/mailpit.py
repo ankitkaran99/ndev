@@ -3,10 +3,8 @@ Mailpit management for Linux ndev.
 Downloads prebuilt Linux amd64/arm64 binaries from GitHub releases and manages
 the background daemon.
 """
-import os
 import platform
 import shutil
-import socket
 import subprocess
 import tarfile
 import time
@@ -14,7 +12,7 @@ import webbrowser
 import httpx
 from pathlib import Path
 from rich.console import Console
-from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn, SpinnerColumn
+from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 
 from ndev.common.constants import NDEV_DIR, RUN_DIR, LOGS_DIR
 from ndev.common.logger import logger

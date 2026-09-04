@@ -10,7 +10,6 @@ from __future__ import annotations
 import base64
 import re
 from pathlib import Path
-from typing import Optional
 
 from . import fcgi, mkcert, paths
 from .elevate import is_admin, run_elevated

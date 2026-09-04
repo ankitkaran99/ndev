@@ -1,4 +1,3 @@
-import os
 import shutil
 import socket
 import subprocess
@@ -11,6 +10,8 @@ from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, Trans
 from ndev.common.constants import NDEV_DIR, CURRENT_LINK, RUN_DIR, LOGS_DIR
 from ndev.common.logger import logger
 from ndev.linux.runtime.process import is_pid_running, read_pid_file, kill_process
+
+console = Console()
 
 PMA_DIR = NDEV_DIR / "pma"
 # Backward compatibility migration for legacy phpmyadmin directory
@@ -51,7 +52,7 @@ def extract_zip(zip_path: Path, extract_dir: Path):
         TextColumn("[bold blue]{task.description}"),
         console=console
     ) as progress:
-        task = progress.add_task("Extracting phpMyAdmin...", total=None)
+        progress.add_task("Extracting phpMyAdmin...", total=None)
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(extract_dir)
 

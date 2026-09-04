@@ -30,12 +30,11 @@ from textual.widgets import (
     Label,
     RichLog,
     Select,
-    Static,
     TabbedContent,
     TabPane,
 )
 
-from ndev.common.constants import NDEV_DIR, PHP_DIR, CURRENT_LINK, RUN_DIR, LOGS_DIR
+from ndev.common.constants import NDEV_DIR, PHP_DIR, CURRENT_LINK, LOGS_DIR
 from ndev.linux.runtime.fpm import get_fpm_status, start_fpm, stop_fpm, restart_fpm
 from ndev.linux.runtime.pma import get_pma_status, start_pma, stop_pma, restart_pma, setup_pma
 from ndev.linux.runtime.mailpit import get_mailpit_status, start_mailpit, stop_mailpit, restart_mailpit, is_installed as is_mailpit_installed, setup_mailpit
@@ -959,7 +958,7 @@ class NdevDashboard(App):
         self.notify(f"Creating vhost {domain}...", severity="information")
 
         def _do() -> str:
-            from ndev.linux.commands.vhost import generate_local_cert, chown_to_sudo_user
+            from ndev.linux.commands.vhost import generate_local_cert
             nginx_available = Path("/etc/nginx/sites-available")
             nginx_enabled = Path("/etc/nginx/sites-enabled")
             if not nginx_available.exists():

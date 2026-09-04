@@ -1,5 +1,5 @@
 import typer
-from ndev.common.constants import LOGS_DIR, CURRENT_LINK
+from ndev.common.constants import LOGS_DIR
 from ndev.common.logger import logger
 
 def logs_cmd(
