@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="ui.png" alt="ndev Interactive Terminal UI Dashboard" width="90%">
+  <img src="ui.PNG" alt="ndev Interactive Terminal UI Dashboard" width="90%">
 </p>
 
 ---
