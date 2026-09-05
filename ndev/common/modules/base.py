@@ -90,7 +90,7 @@ class NdevModule:
         bin_dir = self.module_dir / "bin"
         if bin_dir.exists() and any(bin_dir.iterdir()):
             return True
-        return True
+        return False
 
     def install(self, **kwargs) -> bool:
         if self.handler and hasattr(self.handler, "install"):

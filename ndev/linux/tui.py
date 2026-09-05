@@ -1349,6 +1349,15 @@ class NdevDashboard(App):
                 if shutil.which("apt"):
                     subprocess.run(["sudo", "apt-get", "install", "-y", "mariadb-server"], check=True)
 
+            elif key.startswith("mod:"):
+                mod_name = key.split(":", 1)[1]
+                from ndev.common.modules import get_module_manager
+                mod = get_module_manager().get_module(mod_name)
+                if mod:
+                    mod.install()
+                else:
+                    raise RuntimeError(f"Module '{mod_name}' not found.")
+
 
         try:
             await asyncio.to_thread(_do)
@@ -1476,22 +1485,46 @@ class NdevDashboard(App):
                 mod = get_module_manager().get_module(mod_name)
                 if mod:
                     if action == "start":
+                        if not mod.is_installed():
+                            self.log_message(f"[bold cyan]Module '{mod.display_name}' is not installed - downloading & setting up...[/bold cyan]")
+                            mod.install()
                         mod.start()
+                        st = mod.status()
+                        if not st.get("running"):
+                            raise RuntimeError(f"Failed to start {mod.display_name}. Status: {st.get('details', 'Stopped')}")
                     elif action == "stop":
                         mod.stop()
                     elif action == "restart":
+                        if not mod.is_installed():
+                            mod.install()
                         mod.restart()
+                        st = mod.status()
+                        if not st.get("running"):
+                            raise RuntimeError(f"Failed to restart {mod.display_name}. Status: {st.get('details', 'Stopped')}")
+                else:
+                    raise RuntimeError(f"Module '{mod_name}' not found.")
 
             elif key in ["redis", "mailpit", "postgres"]:
                 from ndev.common.modules import get_module_manager
                 mod = get_module_manager().get_module(key)
                 if mod:
                     if action == "start":
+                        if not mod.is_installed():
+                            self.log_message(f"[bold cyan]Module '{mod.display_name}' is not installed - downloading & setting up...[/bold cyan]")
+                            mod.install()
                         mod.start()
+                        st = mod.status()
+                        if not st.get("running"):
+                            raise RuntimeError(f"Failed to start {mod.display_name}. Status: {st.get('details', 'Stopped')}")
                     elif action == "stop":
                         mod.stop()
                     elif action == "restart":
+                        if not mod.is_installed():
+                            mod.install()
                         mod.restart()
+                        st = mod.status()
+                        if not st.get("running"):
+                            raise RuntimeError(f"Failed to restart {mod.display_name}. Status: {st.get('details', 'Stopped')}")
 
             elif key.startswith("php:"):
                 ver = key.split(":", 1)[1]

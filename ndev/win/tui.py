@@ -1247,10 +1247,14 @@ class NdevDashboard(App):
                 setup_core.install_nginx()
             elif key == "mariadb":
                 setup_core.install_mariadb()
-            elif key == "mkcert":
-                setup_core.install_mkcert()
-            elif key == "composer":
-                setup_core.install_composer()
+            elif key.startswith("mod:"):
+                mod_name = key.split(":", 1)[1]
+                from ndev.common.modules import get_module_manager
+                mod = get_module_manager().get_module(mod_name)
+                if mod:
+                    mod.install()
+                else:
+                    raise RuntimeError(f"Module '{mod_name}' not found.")
 
             elif key.startswith("php:"):
                 ver = key.split(":", 1)[1]
@@ -1396,22 +1400,46 @@ class NdevDashboard(App):
                 mod = get_module_manager().get_module(mod_name)
                 if mod:
                     if action == "start":
+                        if not mod.is_installed():
+                            self.log_message(f"[bold cyan]Module '{mod.display_name}' is not installed - downloading & setting up...[/bold cyan]")
+                            mod.install()
                         mod.start()
+                        st = mod.status()
+                        if not st.get("running"):
+                            raise RuntimeError(f"Failed to start {mod.display_name}. Status: {st.get('details', 'Stopped')}")
                     elif action == "stop":
                         mod.stop()
                     elif action == "restart":
+                        if not mod.is_installed():
+                            mod.install()
                         mod.restart()
+                        st = mod.status()
+                        if not st.get("running"):
+                            raise RuntimeError(f"Failed to restart {mod.display_name}. Status: {st.get('details', 'Stopped')}")
+                else:
+                    raise RuntimeError(f"Module '{mod_name}' not found.")
 
             elif key in ["redis", "mailpit", "postgres"]:
                 from ndev.common.modules import get_module_manager
                 mod = get_module_manager().get_module(key)
                 if mod:
                     if action == "start":
+                        if not mod.is_installed():
+                            self.log_message(f"[bold cyan]Module '{mod.display_name}' is not installed - downloading & setting up...[/bold cyan]")
+                            mod.install()
                         mod.start()
+                        st = mod.status()
+                        if not st.get("running"):
+                            raise RuntimeError(f"Failed to start {mod.display_name}. Status: {st.get('details', 'Stopped')}")
                     elif action == "stop":
                         mod.stop()
                     elif action == "restart":
+                        if not mod.is_installed():
+                            mod.install()
                         mod.restart()
+                        st = mod.status()
+                        if not st.get("running"):
+                            raise RuntimeError(f"Failed to restart {mod.display_name}. Status: {st.get('details', 'Stopped')}")
 
             elif key.startswith("php:"):
                 ver = key.split(":", 1)[1]
