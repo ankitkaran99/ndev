@@ -116,15 +116,32 @@ def vhost_cmd(
         raise typer.Exit(code=1)
         
     if not root:
-        root = typer.prompt("Project Root").strip()
+        sudo_user = os.environ.get("SUDO_USER")
+        if sudo_user:
+            try:
+                import pwd
+                home_dir = Path(pwd.getpwnam(sudo_user).pw_dir)
+            except Exception:
+                home_dir = Path.home()
+        else:
+            home_dir = Path.home()
+        default_root = str(home_dir / "Sites" / domain)
+        root = typer.prompt("Project Root", default=default_root).strip()
     if not root:
         logger.error("Project Root is required.")
         raise typer.Exit(code=1)
         
-    root_path = Path(root)
-    if not root_path.exists() or not root_path.is_dir():
-        logger.error(f"Project root directory does not exist: {root}")
-        raise typer.Exit(code=1)
+    root_path = Path(root).resolve()
+    if not root_path.exists():
+        root_path.mkdir(parents=True, exist_ok=True)
+        chown_to_sudo_user(root_path)
+    if not any(root_path.iterdir()):
+        index_php = root_path / "index.php"
+        index_php.write_text(
+            f"<?php\n// Virtual host: {domain}\necho '<h1>Welcome to {domain}</h1>';\necho '<p>Served by Nginx & PHP via ndev</p>';\nphpinfo();\n",
+            encoding="utf-8"
+        )
+        chown_to_sudo_user(index_php)
         
     installed_phps = get_installed_php_versions()
     if not installed_phps:

@@ -254,10 +254,12 @@ class CreateVhostModal(ModalScreen[Optional[dict]]):
         super().__init__()
         self.installed_phps = installed_phps
         self.default_php = default_php or (installed_phps[0] if installed_phps else "8.4")
+        self._user_edited_root = False
 
     def compose(self) -> ComposeResult:
         php_options = [(v, v) for v in self.installed_phps] if self.installed_phps else [(self.default_php, self.default_php)]
         initial_php = self.default_php if self.default_php in [o[1] for o in php_options] else (php_options[0][1] if php_options else "8.4")
+        default_root_placeholder = str(Path.home() / "Sites" / "app.test")
 
         with Vertical(id="modal-dialog"):
             yield Label("🌐 Create New Virtual Host", id="modal-title")
@@ -265,7 +267,7 @@ class CreateVhostModal(ModalScreen[Optional[dict]]):
             yield Input(placeholder="app.test", id="input-vhost-domain", classes="modal-input")
             yield Label("Document Root Directory:", classes="modal-label")
             with Horizontal(classes="modal-input-row"):
-                yield Input(placeholder="/var/www/app (or public folder)", id="input-vhost-root")
+                yield Input(placeholder=default_root_placeholder, id="input-vhost-root")
                 yield Button("📁 Browse...", id="btn-vhost-browse", variant="primary")
             yield Label("PHP Version:", classes="modal-label")
             yield Select(php_options, value=initial_php, id="select-vhost-php", classes="modal-input")
@@ -274,15 +276,36 @@ class CreateVhostModal(ModalScreen[Optional[dict]]):
                 yield Button("Create VHost", variant="success", id="btn-modal-create")
                 yield Button("Cancel", variant="default", id="btn-modal-cancel")
 
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "input-vhost-domain":
+            domain = event.value.strip()
+            if not self._user_edited_root:
+                root_input = self.query_one("#input-vhost-root", Input)
+                if domain:
+                    root_input.value = str(Path.home() / "Sites" / domain)
+                else:
+                    root_input.value = ""
+        elif event.input.id == "input-vhost-root":
+            domain = self.query_one("#input-vhost-domain", Input).value.strip()
+            expected = str(Path.home() / "Sites" / domain) if domain else ""
+            if event.value != expected:
+                self._user_edited_root = bool(event.value.strip())
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-vhost-browse":
             current_val = self.query_one("#input-vhost-root", Input).value.strip()
+            if not current_val:
+                domain = self.query_one("#input-vhost-domain", Input).value.strip()
+                current_val = str(Path.home() / "Sites" / domain) if domain else str(Path.home() / "Sites")
             chosen = _pick_directory_os(current_val)
             if chosen:
+                self._user_edited_root = True
                 self.query_one("#input-vhost-root", Input).value = chosen
         elif event.button.id == "btn-modal-create":
             domain = self.query_one("#input-vhost-domain", Input).value.strip()
             root = self.query_one("#input-vhost-root", Input).value.strip()
+            if not root and domain:
+                root = str(Path.home() / "Sites" / domain)
             php_val = self.query_one("#select-vhost-php", Select).value
             php_ver = str(php_val) if (php_val is not None and php_val != Select.BLANK) else self.default_php
             ssl = self.query_one("#chk-vhost-ssl", Checkbox).value
