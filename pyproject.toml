@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ndev-stack"
-version = "0.2.0"
-description = "Cross-platform developer stack manager for PHP, FastCGI/PHP-FPM, MariaDB, Redis, Nginx, SSL, and Mailpit on Linux and Windows"
+version = "0.3.0"
+description = "Cross-platform developer stack manager for PHP, FastCGI/PHP-FPM, MariaDB, Redis, PostgreSQL, MongoDB, Nginx, SSL, and Mailpit on Linux and Windows"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -41,4 +41,5 @@ where = ["."]
 include = ["ndev*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.tmpl", "*.conf", "*.json"]
+"*" = ["*.tmpl", "*.conf", "*.json", "*.ini", "*.php", "*.md"]
+
