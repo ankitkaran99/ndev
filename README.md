@@ -538,6 +538,8 @@ ndev module create my-service --display-name "My Custom Service" --category queu
 
 Dynamic modules appear automatically inside the **TUI Dashboard (`ndev ui`)**, where you can start, stop, restart, and open web interfaces with a single click.
 
+> 📖 **Looking to build your own module?** See the full [**ndev Module Developer Guide (MODULE_DEV_GUIDE.md)**](MODULE_DEV_GUIDE.md) for step-by-step instructions, manifest schema, and boilerplate templates.
+
 ---
 
 ## Configuration Files
