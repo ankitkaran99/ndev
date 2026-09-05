@@ -80,6 +80,12 @@ app.add_typer(db_app, name="db")
 from ndev.linux.commands.mailpit import mailpit_app
 app.add_typer(mailpit_app, name="mailpit")
 
+from ndev.linux.commands.modules import module_app
+app.add_typer(module_app, name="module")
+
+from ndev.linux.commands.postgres import postgres_app
+app.add_typer(postgres_app, name="postgres")
+
 @app.command("ui")
 def ui_cmd():
     """Launch the interactive Textual TUI dashboard."""

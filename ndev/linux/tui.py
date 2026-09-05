@@ -603,7 +603,7 @@ class NdevDashboard(App):
             results.append({
                 "key": "mariadb",
                 "name": "MariaDB / MySQL",
-                "type": "Database",
+                "type": "Database (Core)",
                 "installed": db_installed,
                 "running": db_running,
                 "pid": "Active" if db_running else "-",
@@ -611,33 +611,13 @@ class NdevDashboard(App):
                 "url": None,
             })
 
-            # 3. Redis
-            redis_installed = bool(shutil.which("redis-server"))
-            redis_running = False
-            if redis_installed and shutil.which("systemctl"):
-                res = subprocess.run(["systemctl", "is-active", "--quiet", "redis-server"])
-                if res.returncode != 0:
-                    res = subprocess.run(["systemctl", "is-active", "--quiet", "redis"])
-                redis_running = (res.returncode == 0)
-
-            results.append({
-                "key": "redis",
-                "name": "Redis",
-                "type": "In-Memory Store",
-                "installed": redis_installed,
-                "running": redis_running,
-                "pid": "Active" if redis_running else "-",
-                "details": "Port: 6379 (CLI: redis-cli)",
-                "url": None,
-            })
-
-            # 4. phpMyAdmin
+            # 3. phpMyAdmin
             pma_st = get_pma_status()
             pma_url = pma_st.get("url") or f"http://127.0.0.1:{pma_st.get('port', 8080)}"
             results.append({
                 "key": "pma",
                 "name": "phpMyAdmin",
-                "type": "Admin Tool",
+                "type": "Admin Tool (Core)",
                 "installed": pma_st.get("installed", False),
                 "running": pma_st.get("running", False),
                 "pid": str(pma_st.get("pid") or "-"),
@@ -645,21 +625,30 @@ class NdevDashboard(App):
                 "url": pma_url if pma_st.get("running") else None,
             })
 
-            # 5. Mailpit
-            mp_st = get_mailpit_status()
-            mp_url = mp_st.get("url") or f"http://127.0.0.1:{mp_st.get('web_port', 8025)}"
-            results.append({
-                "key": "mailpit",
-                "name": "Mailpit",
-                "type": "Email Sandbox",
-                "installed": mp_st.get("installed", False),
-                "running": mp_st.get("running", False),
-                "pid": str(mp_st.get("pid") or "-"),
-                "details": f"Web: {mp_url} | SMTP: 127.0.0.1:{mp_st.get('smtp_port', 1025)}" if mp_st.get("running") else "Web: 8025 | SMTP: 1025",
-                "url": mp_url if mp_st.get("running") else None,
-            })
+            # 4. Dynamic Modules (~/.ndev/modules/)
+            try:
+                from ndev.common.modules import get_module_manager
+                for mod in get_module_manager().list_modules():
+                    st = mod.status()
+                    inst = st.get("installed", False)
+                    run = st.get("running", False)
+                    pid_val = str(st.get("pid") or "-") if run else "-"
+                    det = st.get("details", "")
+                    web = st.get("web_ui")
+                    results.append({
+                        "key": f"mod:{mod.name}",
+                        "name": mod.display_name,
+                        "type": f"Module ({mod.category.title()})",
+                        "installed": inst,
+                        "running": run,
+                        "pid": pid_val,
+                        "details": det,
+                        "url": web if run else None,
+                    })
+            except Exception:
+                pass
 
-            # 6. PHP-FPM Pools
+            # 5. PHP-FPM Pools
 
             installed_phps = []
             if PHP_DIR.exists():
@@ -883,21 +872,22 @@ class NdevDashboard(App):
             # 2. MariaDB
             if shutil.which("systemctl"):
                 subprocess.run(["sudo", "systemctl", "start", "mariadb"])
-            # 3. Redis
-            if shutil.which("systemctl"):
-                subprocess.run(["sudo", "systemctl", "start", "redis-server"])
-            # 4. phpMyAdmin
+            # 3. phpMyAdmin
             try:
                 start_pma()
             except Exception as e:
                 self.log_message(f"[yellow]phpMyAdmin notice: {e}[/yellow]")
-            # 5. Mailpit
+
+            # 4. Dynamic Modules (Mailpit, Redis, Postgres, etc.)
             try:
-                if is_mailpit_installed() and not get_mailpit_status()["running"]:
-                    start_mailpit()
+                from ndev.common.modules import get_module_manager
+                for mod in get_module_manager().list_modules():
+                    if mod.is_installed() and not mod.status().get("running"):
+                        mod.start()
             except Exception as e:
-                self.log_message(f"[yellow]Mailpit notice: {e}[/yellow]")
-            # 6. PHP-FPM pools
+                self.log_message(f"[yellow]Modules notice: {e}[/yellow]")
+
+            # 5. PHP-FPM pools
             if PHP_DIR.exists():
                 for d in PHP_DIR.iterdir():
                     if d.is_dir():
@@ -921,14 +911,17 @@ class NdevDashboard(App):
             if shutil.which("systemctl"):
                 subprocess.run(["sudo", "systemctl", "stop", "nginx"])
                 subprocess.run(["sudo", "systemctl", "stop", "mariadb"])
-                subprocess.run(["sudo", "systemctl", "stop", "redis-server"])
             stop_pma()
-            stop_mailpit()
+            try:
+                from ndev.common.modules import get_module_manager
+                for mod in get_module_manager().list_modules():
+                    mod.stop()
+            except Exception:
+                pass
             if PHP_DIR.exists():
                 for d in PHP_DIR.iterdir():
                     if d.is_dir():
                         stop_fpm(d.name)
-
 
         await asyncio.to_thread(_do)
         self.log_message("[bold green]✓ All services stopped.[/bold green]")
@@ -946,8 +939,12 @@ class NdevDashboard(App):
                 subprocess.run(["sudo", "systemctl", "restart", "nginx"])
                 subprocess.run(["sudo", "systemctl", "restart", "mariadb"])
             restart_pma()
-            if is_mailpit_installed():
-                restart_mailpit()
+            try:
+                from ndev.common.modules import get_module_manager
+                for mod in get_module_manager().list_modules():
+                    mod.restart()
+            except Exception:
+                pass
             if PHP_DIR.exists():
                 for d in PHP_DIR.iterdir():
                     if d.is_dir():
@@ -1465,12 +1462,6 @@ class NdevDashboard(App):
                 else:
                     subprocess.run(["sudo", "service", "mariadb", action], check=True)
 
-            elif key == "redis":
-                if shutil.which("systemctl"):
-                    subprocess.run(["sudo", "systemctl", action, "redis-server"], check=True)
-                else:
-                    subprocess.run(["sudo", "service", "redis-server", action], check=True)
-
             elif key == "pma":
                 if action == "start":
                     start_pma()
@@ -1479,14 +1470,28 @@ class NdevDashboard(App):
                 elif action == "restart":
                     restart_pma()
 
-            elif key == "mailpit":
-                if action == "start":
-                    start_mailpit()
-                elif action == "stop":
-                    stop_mailpit()
-                elif action == "restart":
-                    restart_mailpit()
+            elif key.startswith("mod:"):
+                mod_name = key.split(":", 1)[1]
+                from ndev.common.modules import get_module_manager
+                mod = get_module_manager().get_module(mod_name)
+                if mod:
+                    if action == "start":
+                        mod.start()
+                    elif action == "stop":
+                        mod.stop()
+                    elif action == "restart":
+                        mod.restart()
 
+            elif key in ["redis", "mailpit", "postgres"]:
+                from ndev.common.modules import get_module_manager
+                mod = get_module_manager().get_module(key)
+                if mod:
+                    if action == "start":
+                        mod.start()
+                    elif action == "stop":
+                        mod.stop()
+                    elif action == "restart":
+                        mod.restart()
 
             elif key.startswith("php:"):
                 ver = key.split(":", 1)[1]
@@ -1508,7 +1513,7 @@ class NdevDashboard(App):
             self._refresh_all_data(full_rebuild=False)
 
     def _handle_selected_service_open(self) -> None:
-        """Open web UI for phpMyAdmin or Mailpit if selected."""
+        """Open web UI for phpMyAdmin or dynamic modules if selected."""
         svc_table = self.query_one("#table-services", DataTable)
         if svc_table.cursor_row is not None and svc_table.row_count > 0:
             row_key = svc_table.coordinate_to_cell_key((svc_table.cursor_row, 0)).row_key
@@ -1520,11 +1525,18 @@ class NdevDashboard(App):
             url = st.get("url") or "http://127.0.0.1:8080"
             webbrowser.open(url)
             self.log_message(f"Opening phpMyAdmin at {url}")
-        elif key == "mailpit":
-            st = get_mailpit_status()
-            url = st.get("url") or "http://127.0.0.1:8025"
-            webbrowser.open(url)
-            self.log_message(f"Opening Mailpit at {url}")
+        elif key.startswith("mod:") or key in ["mailpit", "redis", "postgres"]:
+            mod_name = key.split(":", 1)[1] if key.startswith("mod:") else key
+            from ndev.common.modules import get_module_manager
+            mod = get_module_manager().get_module(mod_name)
+            if mod:
+                if mod.web_ui or (mod.handler and hasattr(mod.handler, "open_ui")):
+                    mod.open_ui()
+                    self.log_message(f"Opening {mod.display_name} at {mod.web_ui or 'web browser'}")
+                else:
+                    self.notify(f"{mod.display_name} does not provide a web interface.", severity="information")
+            else:
+                self.notify(f"Module {mod_name} not found.", severity="warning")
         elif key == "nginx":
             webbrowser.open("http://127.0.0.1")
             self.log_message("Opening Nginx at http://127.0.0.1")

@@ -215,6 +215,10 @@ ndev ui
 | `ndev pma` | Manage phpMyAdmin background service (`http://127.0.0.1:8080`) |
 | `ndev ext` | Manage PECL extensions (`list`, `install`, `enable`, `disable`) |
 | `ndev grok` | Public HTTP tunneling for local virtual hosts via ngrok |
+| `ndev postgres` | Manage PostgreSQL server (`install`, `start`, `stop`, `restart`, `status`) |
+| `ndev module list` | List all dynamic modules and status in `<userdir>/.ndev/modules/` |
+| `ndev module <action>`| Manage dynamic module lifecycle (`install`, `start`, `stop`, `restart`, `status`, `open`) |
+| `ndev module create` | Scaffold a new dynamic module with manifest and template code |
 | `ndev upgrade` | Check for and upgrade stack components (Nginx, MariaDB, Redis, PMA, Mailpit, mkcert, Composer) |
 | `ndev upgrade --check` | Check component versions against upstream releases without upgrading |
 | `ndev shell` | Interactive developer subshell pre-loaded with PHP/Composer/MySQL/Redis on PATH |
@@ -476,6 +480,59 @@ ndev grok
 # Clean download cache and temporary files
 ndev clean
 ```
+
+---
+
+### 10. Extensible Dynamic Modules (`ndev module`)
+
+`ndev` features a modular architecture where core services (`nginx`, `mariadb`, `php`, `phpmyadmin`, `ngrok`) are augmented with dynamic modules (`mailpit`, `redis`, `postgres`, and custom community modules) located in `<userdir>/.ndev/modules/<module_name>/`.
+
+#### Module Commands:
+```bash
+# List all discovered modules and running status
+ndev module list
+
+# Manage module lifecycle
+ndev module install mailpit
+ndev module start redis
+ndev module status postgres
+ndev module open mailpit     # Opens web UI if available
+ndev module restart redis
+ndev module stop redis
+
+# Direct convenience commands also work seamlessly:
+ndev start mailpit
+ndev stop redis
+ndev postgres start
+ndev postgres status
+
+# Scaffold a new custom module
+ndev module create my-service --display-name "My Custom Service" --category queue --port 9000
+```
+
+#### Module Structure (`~/.ndev/modules/<name>/`):
+```text
+~/.ndev/modules/my-service/
+├── manifest.json   # Module metadata, ports, categories, and web UI definitions
+└── module.py       # Python lifecycle handler (is_installed, install, start, stop, restart, status, open_ui)
+```
+
+**Sample `manifest.json`:**
+```json
+{
+  "name": "my-service",
+  "display_name": "My Custom Service",
+  "version": "1.0.0",
+  "description": "Custom queue worker service",
+  "category": "queue",
+  "ports": [9000],
+  "web_ui": "http://127.0.0.1:9000",
+  "platforms": ["windows", "linux"],
+  "entrypoint": "module.py"
+}
+```
+
+Dynamic modules appear automatically inside the **TUI Dashboard (`ndev ui`)**, where you can start, stop, restart, and open web interfaces with a single click.
 
 ---
 

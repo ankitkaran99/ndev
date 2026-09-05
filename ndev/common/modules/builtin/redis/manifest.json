@@ -1,0 +1,15 @@
+{
+  "name": "redis",
+  "display_name": "Redis Server",
+  "version": "8.10.1",
+  "description": "High-performance in-memory data store, cache, and message broker",
+  "category": "database",
+  "author": "Redis (packaged by ndev)",
+  "homepage": "https://redis.io",
+  "ports": {
+    "redis": 6379
+  },
+  "web_ui": null,
+  "platforms": ["windows", "linux", "darwin"],
+  "entrypoint": "module.py"
+}

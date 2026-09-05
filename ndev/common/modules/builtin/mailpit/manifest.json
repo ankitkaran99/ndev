@@ -1,0 +1,16 @@
+{
+  "name": "mailpit",
+  "display_name": "Mailpit",
+  "version": "1.21.8",
+  "description": "Email testing tool and mock SMTP catcher with modern web UI",
+  "category": "mail",
+  "author": "Axllent (packaged by ndev)",
+  "homepage": "https://github.com/axllent/mailpit",
+  "ports": {
+    "smtp": 1025,
+    "http": 8025
+  },
+  "web_ui": "http://localhost:8025",
+  "platforms": ["windows", "linux", "darwin"],
+  "entrypoint": "module.py"
+}

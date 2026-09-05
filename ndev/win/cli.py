@@ -416,7 +416,7 @@ def _resolve_target(target: str | None) -> str:
 @main.command()
 @click.argument("target", required=False)
 def start(target):
-    """Start a service (e.g. `8.4`, `pma`, `nginx`, `mariadb`, or `all`)."""
+    """Start a service (e.g. `8.4`, `pma`, `nginx`, `mariadb`, `redis`, `mailpit`, `postgres`, or `all`)."""
     t = (target or "").lower()
     if t == "all":
         services.nginx_start()
@@ -425,13 +425,20 @@ def start(target):
             pma_core.start()
         except Exception:
             pass
+        try:
+            from ndev.common.modules import get_module_manager
+            for mod in get_module_manager().list_modules():
+                if mod.is_installed() and not mod.status().get("running"):
+                    mod.start()
+        except Exception:
+            pass
         for v in php.list_installed():
             cfg = paths.load_config()
             try:
                 fcgi.start(v, php.php_cgi_exe(v), cfg["fcgi_workers_per_version"], cfg["fcgi_base_port"])
             except Exception:
                 pass
-        console.print("[bold green]Started all services.[/bold green]")
+        console.print("[bold green]Started all core services and active modules.[/bold green]")
         return
 
     if t in ["pma", "phpmyadmin"]:
@@ -441,19 +448,6 @@ def start(target):
             return
         pid = pma_core.start()
         console.print(f"[bold green]phpMyAdmin started at http://127.0.0.1:8080 (PID {pid})[/bold green]")
-        return
-
-    if t in ["mailpit", "mail"]:
-        st = mailpit_core.status()
-        if st:
-            console.print(f"[yellow]Mailpit is already running at {st.get('url', 'http://127.0.0.1:8025')} (PID {st.get('pid')})[/yellow]")
-            return
-        if not mailpit_core.is_installed():
-            console.print("[yellow]Mailpit not installed - downloading now...[/yellow]")
-            with console.status("[bold green]Downloading Mailpit...[/bold green]"):
-                mailpit_core.install()
-        pid = mailpit_core.start()
-        console.print(f"[bold green]Mailpit started at http://127.0.0.1:8025 (PID {pid})[/bold green]")
         return
 
     if t == "nginx":
@@ -474,6 +468,23 @@ def start(target):
         console.print(f"[bold green]MariaDB started (PID {pid}).[/bold green]")
         return
 
+    # Check dynamic modules (~/.ndev/modules/)
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(t)
+    if mod:
+        st = mod.status()
+        if st.get("running"):
+            console.print(f"[yellow]{mod.display_name} is already running ({st.get('details', '')}).[/yellow]")
+            return
+        if not mod.is_installed():
+            console.print(f"[yellow]{mod.display_name} not installed - downloading/installing now...[/yellow]")
+            with console.status(f"[bold green]Installing {mod.display_name}...[/bold green]"):
+                mod.install()
+        pid = mod.start()
+        st_after = mod.status()
+        console.print(f"[bold green]{mod.display_name} started ({st_after.get('details', 'Running')}).[/bold green]")
+        return
+
     # Treat as PHP version
     v = _resolve_target(target)
     existing = fcgi.status(v)
@@ -490,15 +501,21 @@ def start(target):
 @main.command()
 @click.argument("target", required=False)
 def stop(target):
-    """Stop a service (e.g. `8.4`, `pma`, `nginx`, `mariadb`, or `all`)."""
+    """Stop a service (e.g. `8.4`, `pma`, `nginx`, `mariadb`, `redis`, `mailpit`, `postgres`, or `all`)."""
     t = (target or "").lower()
     if t == "all":
         services.nginx_stop()
         services.mariadb_stop()
         pma_core.stop()
+        try:
+            from ndev.common.modules import get_module_manager
+            for mod in get_module_manager().list_modules():
+                mod.stop()
+        except Exception:
+            pass
         for v in php.list_installed():
             fcgi.stop(v)
-        console.print("[bold green]Stopped all services.[/bold green]")
+        console.print("[bold green]Stopped all services and modules.[/bold green]")
         return
 
     if t in ["pma", "phpmyadmin"]:
@@ -507,14 +524,6 @@ def stop(target):
             return
         pma_core.stop()
         console.print("[bold green]phpMyAdmin stopped.[/bold green]")
-        return
-
-    if t in ["mailpit", "mail"]:
-        if not mailpit_core.status():
-            console.print("[yellow]Mailpit is not running.[/yellow]")
-            return
-        mailpit_core.stop()
-        console.print("[bold green]Mailpit stopped.[/bold green]")
         return
 
     if t == "nginx":
@@ -533,6 +542,18 @@ def stop(target):
         console.print("[bold green]MariaDB stopped.[/bold green]")
         return
 
+    # Check dynamic modules
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(t)
+    if mod:
+        st = mod.status()
+        if not st.get("running"):
+            console.print(f"[yellow]{mod.display_name} is not running.[/yellow]")
+            return
+        mod.stop()
+        console.print(f"[bold green]{mod.display_name} stopped.[/bold green]")
+        return
+
     v = _resolve_target(target)
     if not fcgi.status(v):
         console.print(f"[yellow]PHP {v} FastCGI pool is not running.[/yellow]")
@@ -544,18 +565,32 @@ def stop(target):
 @main.command()
 @click.argument("target", required=False)
 def restart(target):
-    """Restart a service (e.g. `8.4`, `pma`, `mailpit`, `nginx`, `mariadb`, or `all`)."""
+    """Restart a service (e.g. `8.4`, `pma`, `mailpit`, `redis`, `postgres`, `nginx`, `mariadb`, or `all`)."""
     t = (target or "").lower()
     if t == "all":
         services.nginx_stop()
         services.mariadb_stop()
         pma_core.stop()
+        try:
+            from ndev.common.modules import get_module_manager
+            for mod in get_module_manager().list_modules():
+                mod.stop()
+        except Exception:
+            pass
         for v in php.list_installed():
             fcgi.stop(v)
+
         services.nginx_start()
         services.mariadb_start()
         try:
             pma_core.start()
+        except Exception:
+            pass
+        try:
+            from ndev.common.modules import get_module_manager
+            for mod in get_module_manager().list_modules():
+                if mod.is_installed():
+                    mod.start()
         except Exception:
             pass
         for v in php.list_installed():
@@ -564,19 +599,12 @@ def restart(target):
                 fcgi.start(v, php.php_cgi_exe(v), cfg["fcgi_workers_per_version"], cfg["fcgi_base_port"])
             except Exception:
                 pass
-        console.print("[bold green]Restarted all services.[/bold green]")
+        console.print("[bold green]Restarted all services and modules.[/bold green]")
         return
 
     if t in ["pma", "phpmyadmin"]:
         pid = pma_core.restart()
         console.print(f"[bold green]phpMyAdmin restarted at http://127.0.0.1:8080 (PID {pid})[/bold green]")
-        return
-
-    if t in ["mailpit", "mail"]:
-        if not mailpit_core.is_installed():
-            raise click.ClickException("Mailpit is not installed. Run `ndev mailpit install` first.")
-        pid = mailpit_core.restart()
-        console.print(f"[bold green]Mailpit restarted at http://127.0.0.1:8025 (PID {pid})[/bold green]")
         return
 
     if t == "nginx":
@@ -589,6 +617,17 @@ def restart(target):
         services.mariadb_stop()
         pid = services.mariadb_start()
         console.print(f"[bold green]MariaDB restarted (PID {pid}).[/bold green]")
+        return
+
+    # Check dynamic modules
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(t)
+    if mod:
+        if not mod.is_installed():
+            raise click.ClickException(f"{mod.display_name} is not installed. Run `ndev module install {mod.name}` first.")
+        pid = mod.restart()
+        st_after = mod.status()
+        console.print(f"[bold green]{mod.display_name} restarted ({st_after.get('details', 'Running')}).[/bold green]")
         return
 
     v = _resolve_target(target)
@@ -615,6 +654,8 @@ def reload(target):
 @click.argument("target", required=False)
 def status(target):
     """Show status of all services or a specific target."""
+    from ndev.common.modules import get_module_manager
+
     if target:
         t = target.lower()
         if t in ["pma", "phpmyadmin"]:
@@ -623,14 +664,6 @@ def status(target):
                 console.print(f"phpMyAdmin: [bold green]Running[/bold green] at {st['url']} (PID {st['pid']})")
             else:
                 console.print("phpMyAdmin: [bold red]Stopped[/bold red]")
-            return
-
-        if t in ["mailpit", "mail"]:
-            st = mailpit_core.status()
-            if st:
-                console.print(f"Mailpit: [bold green]Running[/bold green] at {st['url']} | SMTP {st['smtp']} (PID {st['pid']})")
-            else:
-                console.print("Mailpit: [bold red]Stopped[/bold red]")
             return
 
         if t == "nginx":
@@ -646,6 +679,18 @@ def status(target):
                 console.print("MariaDB: [bold red]Stopped[/bold red]")
             return
 
+        # Check modules
+        mod = get_module_manager().get_module(t)
+        if mod:
+            st = mod.status()
+            if st.get("running"):
+                console.print(f"{mod.display_name}: [bold green]Running[/bold green] ({st.get('details', '')})")
+            elif st.get("installed"):
+                console.print(f"{mod.display_name}: [bold red]Stopped[/bold red]")
+            else:
+                console.print(f"{mod.display_name}: [yellow]Not Installed[/yellow]")
+            return
+
         # PHP target
         v = _resolve_target(target)
         workers = fcgi.status(v)
@@ -656,8 +701,8 @@ def status(target):
             console.print(f"PHP {v}: [bold red]Stopped[/bold red]")
         return
 
-    # Overall status table
-    table = Table(title="ndev Service Status Dashboard")
+    # Overall Core Services table
+    table = Table(title="ndev Core Services Dashboard")
     table.add_column("Service", style="bold cyan")
     table.add_column("Type", style="magenta")
     table.add_column("Status")
@@ -697,13 +742,6 @@ def status(target):
         pma_installed = (paths.PMA_DIR / "index.php").exists()
         table.add_row("phpMyAdmin", "Admin Tool", "[bold red]STOPPED[/bold red]" if pma_installed else "[dim]NOT INSTALLED[/dim]", "http://127.0.0.1:8080")
 
-    # Mailpit
-    mp_st = mailpit_core.status()
-    if mp_st:
-        table.add_row("Mailpit", "Email Sandbox", "[bold green]RUNNING[/bold green]", f"{mp_st['url']} | SMTP {mp_st['smtp']} (PID {mp_st['pid']})")
-    elif mailpit_core.is_installed():
-        table.add_row("Mailpit", "Email Sandbox", "[bold red]STOPPED[/bold red]", f"http://127.0.0.1:{mailpit_core.DEFAULT_WEB_PORT} | SMTP 127.0.0.1:{mailpit_core.DEFAULT_SMTP_PORT}")
-
     # PHP versions
     curr = php.get_current_version()
     installed_phps = php.list_installed()
@@ -729,6 +767,32 @@ def status(target):
                 )
 
     console.print(table)
+
+    # Dynamic Modules Table
+    mod_mgr = get_module_manager()
+    modules = mod_mgr.list_modules()
+    if modules:
+        mod_table = Table(title="ndev Dynamic Modules (~/.ndev/modules/)")
+        mod_table.add_column("Module", style="bold cyan")
+        mod_table.add_column("Category", style="magenta")
+        mod_table.add_column("Status")
+        mod_table.add_column("Ports / Details")
+
+        for m in modules:
+            st = m.status()
+            if not st.get("installed"):
+                st_badge = "[yellow]NOT INSTALLED[/yellow]"
+            elif st.get("running"):
+                st_badge = "[bold green]RUNNING[/bold green]"
+            else:
+                st_badge = "[bold red]STOPPED[/bold red]"
+            mod_table.add_row(
+                m.display_name,
+                m.category.title(),
+                st_badge,
+                st.get("details", "")
+            )
+        console.print(mod_table)
 
 
 # ---- Interactive Terminal UI Dashboard (ui / tui / dashboard) --------------
@@ -1999,6 +2063,250 @@ def upgrade(component: Optional[str], check: bool):
             console.print(f"[bold red]✗ {msg}[/bold red]")
 
     console.print("\n[bold green]Upgrade process complete![/bold green]")
+
+
+# ---- Extensible Modules Management (module / modules) -----------------------
+
+@main.group(name="module")
+def module_cmd():
+    """Manage extensible ndev modules (mailpit, redis, postgres, or custom modules)."""
+    pass
+
+
+@module_cmd.command(name="list")
+def module_list_cmd():
+    """List all available and installed modules in ~/.ndev/modules/."""
+    from ndev.common.modules import get_module_manager
+    mgr = get_module_manager()
+    modules = mgr.list_modules()
+
+    if not modules:
+        console.print("[yellow]No modules found in ~/.ndev/modules/.[/yellow]")
+        return
+
+    table = Table(title="ndev Modules Dashboard (~/.ndev/modules/)")
+    table.add_column("Module Name", style="bold cyan")
+    table.add_column("Display Name")
+    table.add_column("Category", style="magenta")
+    table.add_column("Version")
+    table.add_column("Status")
+    table.add_column("Ports / Web UI")
+    table.add_column("Description", style="dim")
+
+    for m in modules:
+        st = m.status()
+        if not st.get("installed"):
+            st_text = "[yellow]Not Installed[/yellow]"
+        elif st.get("running"):
+            st_text = "[bold green]Running[/bold green]"
+        else:
+            st_text = "[bold red]Stopped[/bold red]"
+
+        ports_ui = []
+        if m.ports:
+            ports_ui.append(", ".join(f"{k}:{v}" for k, v in m.ports.items()))
+        if m.web_ui:
+            ports_ui.append(f"UI: {m.web_ui}")
+        ports_str = " | ".join(ports_ui) if ports_ui else "-"
+
+        table.add_row(
+            m.name,
+            m.display_name,
+            m.category.title(),
+            m.version,
+            st_text,
+            ports_str,
+            m.description
+        )
+
+    console.print(table)
+
+
+@module_cmd.command(name="install")
+@click.argument("name")
+def module_install_cmd(name: str):
+    """Install or setup a module."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(name)
+    if not mod:
+        raise click.ClickException(f"Module '{name}' not found in ~/.ndev/modules/.")
+
+    console.print(f"[bold blue]Installing {mod.display_name} module...[/bold blue]")
+    with console.status(f"[bold green]Installing {mod.display_name}...[/bold green]"):
+        mod.install()
+    console.print(f"[bold green]✓ {mod.display_name} installed successfully.[/bold green]")
+
+
+@module_cmd.command(name="start")
+@click.argument("name")
+def module_start_cmd(name: str):
+    """Start a module background service."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(name)
+    if not mod:
+        raise click.ClickException(f"Module '{name}' not found in ~/.ndev/modules/.")
+
+    if not mod.is_installed():
+        console.print(f"[yellow]{mod.display_name} is not installed - installing first...[/yellow]")
+        with console.status(f"[bold green]Installing {mod.display_name}...[/bold green]"):
+            mod.install()
+
+    pid = mod.start()
+    st = mod.status()
+    console.print(f"[bold green]✓ {mod.display_name} started ({st.get('details', 'Running')}).[/bold green]")
+
+
+@module_cmd.command(name="stop")
+@click.argument("name")
+def module_stop_cmd(name: str):
+    """Stop a module background service."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(name)
+    if not mod:
+        raise click.ClickException(f"Module '{name}' not found in ~/.ndev/modules/.")
+
+    mod.stop()
+    console.print(f"[bold green]✓ {mod.display_name} stopped.[/bold green]")
+
+
+@module_cmd.command(name="restart")
+@click.argument("name")
+def module_restart_cmd(name: str):
+    """Restart a module background service."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(name)
+    if not mod:
+        raise click.ClickException(f"Module '{name}' not found in ~/.ndev/modules/.")
+
+    if not mod.is_installed():
+        raise click.ClickException(f"{mod.display_name} is not installed.")
+
+    pid = mod.restart()
+    st = mod.status()
+    console.print(f"[bold green]✓ {mod.display_name} restarted ({st.get('details', 'Running')}).[/bold green]")
+
+
+@module_cmd.command(name="status")
+@click.argument("name")
+def module_status_cmd(name: str):
+    """Show detailed status of a module."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(name)
+    if not mod:
+        raise click.ClickException(f"Module '{name}' not found in ~/.ndev/modules/.")
+
+    st = mod.status()
+    table = Table(title=f"Module Status: {mod.display_name}")
+    table.add_column("Property", style="bold cyan")
+    table.add_column("Value")
+
+    table.add_row("Name", mod.name)
+    table.add_row("Display Name", mod.display_name)
+    table.add_row("Version", mod.version)
+    table.add_row("Category", mod.category.title())
+    table.add_row("Installed", "[green]Yes[/green]" if st.get("installed") else "[red]No[/red]")
+    table.add_row("Running", "[bold green]RUNNING[/bold green]" if st.get("running") else "[bold red]STOPPED[/bold red]")
+    table.add_row("PID", str(st.get("pid") or "N/A"))
+    if mod.ports:
+        table.add_row("Ports", ", ".join(f"{k}: {v}" for k, v in mod.ports.items()))
+    if mod.web_ui:
+        table.add_row("Web UI", mod.web_ui)
+    table.add_row("Details", st.get("details", "-"))
+    table.add_row("Module Path", str(mod.module_dir))
+
+    console.print(table)
+
+
+@module_cmd.command(name="open")
+@click.argument("name")
+def module_open_cmd(name: str):
+    """Open web UI for a module in the browser."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module(name)
+    if not mod:
+        raise click.ClickException(f"Module '{name}' not found in ~/.ndev/modules/.")
+
+    if not mod.open_ui():
+        raise click.ClickException(f"Module '{mod.display_name}' does not provide a web interface.")
+    console.print(f"[bold green]Opened {mod.display_name} in browser.[/bold green]")
+
+
+@module_cmd.command(name="create")
+@click.argument("name")
+@click.option("--title", default=None, help="Display title for the module.")
+@click.option("--port", default=None, type=int, help="Default primary TCP port.")
+def module_create_cmd(name: str, title: Optional[str], port: Optional[int]):
+    """Scaffold a new custom module in ~/.ndev/modules/<name>/."""
+    from ndev.common.modules import get_module_manager
+    mgr = get_module_manager()
+    mod_dir = mgr.create_module_scaffold(name, display_name=title, port=port)
+    console.print(f"[bold green]✓ Created module template at:[/bold green] {mod_dir}")
+    console.print(f"Edit [cyan]{mod_dir / 'manifest.json'}[/cyan] and [cyan]{mod_dir / 'module.py'}[/cyan] to customize your module.")
+
+
+# ---- PostgreSQL Convenience Command Group -----------------------------------
+
+@main.group(name="postgres")
+def postgres_cmd():
+    """Manage PostgreSQL database server module."""
+    pass
+
+
+@postgres_cmd.command(name="install")
+def postgres_install_cmd():
+    """Install PostgreSQL portable binaries."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("postgres")
+    if not mod:
+        raise click.ClickException("PostgreSQL module not found.")
+    with console.status("[bold green]Installing PostgreSQL...[/bold green]"):
+        mod.install()
+    console.print("[bold green]✓ PostgreSQL installed and initialized successfully.[/bold green]")
+
+
+@postgres_cmd.command(name="start")
+def postgres_start_cmd():
+    """Start PostgreSQL database server (port 5432)."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("postgres")
+    if not mod:
+        raise click.ClickException("PostgreSQL module not found.")
+    mod.start()
+    st = mod.status()
+    console.print(f"[bold green]✓ PostgreSQL started ({st.get('details', 'Port 5432')}).[/bold green]")
+
+
+@postgres_cmd.command(name="stop")
+def postgres_stop_cmd():
+    """Stop PostgreSQL database server."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("postgres")
+    if not mod:
+        raise click.ClickException("PostgreSQL module not found.")
+    mod.stop()
+    console.print("[bold green]✓ PostgreSQL stopped.[/bold green]")
+
+
+@postgres_cmd.command(name="restart")
+def postgres_restart_cmd():
+    """Restart PostgreSQL database server."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("postgres")
+    if not mod:
+        raise click.ClickException("PostgreSQL module not found.")
+    mod.restart()
+    console.print("[bold green]✓ PostgreSQL restarted.[/bold green]")
+
+
+@postgres_cmd.command(name="status")
+def postgres_status_cmd():
+    """Check PostgreSQL server status."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("postgres")
+    if not mod:
+        raise click.ClickException("PostgreSQL module not found.")
+    st = mod.status()
+    console.print(f"PostgreSQL: {'[bold green]RUNNING[/bold green]' if st.get('running') else '[bold red]STOPPED[/bold red]'} ({st.get('details', '')})")
 
 
 if __name__ == "__main__":

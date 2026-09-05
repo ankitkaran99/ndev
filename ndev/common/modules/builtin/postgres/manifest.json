@@ -1,0 +1,15 @@
+{
+  "name": "postgres",
+  "display_name": "PostgreSQL",
+  "version": "17.2",
+  "description": "Powerful, open source object-relational database system",
+  "category": "database",
+  "author": "PostgreSQL (packaged by ndev)",
+  "homepage": "https://www.postgresql.org",
+  "ports": {
+    "postgres": 5432
+  },
+  "web_ui": null,
+  "platforms": ["windows", "linux", "darwin"],
+  "entrypoint": "module.py"
+}
