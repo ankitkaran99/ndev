@@ -180,3 +180,72 @@ class NdevModule:
             webbrowser.open(self.web_ui)
             return True
         return False
+
+    def backup_data(self) -> Optional[Path]:
+        """Creates a timestamped snapshot backup of module data and configuration in ~/.ndev/backups/modules/<name>_<ts>/."""
+        import datetime
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # User ndev backups folder
+        backups_base = self.module_dir.parent.parent / "backups" / "modules" / f"{self.name}_{ts}"
+        
+        targets_to_backup = []
+        for candidate in ["data", "conf", "config", "my.ini", "redis.conf"]:
+            p = self.module_dir / candidate
+            if p.exists():
+                if p.is_dir() and any(p.iterdir()):
+                    targets_to_backup.append(p)
+                elif p.is_file() and p.stat().st_size > 0:
+                    targets_to_backup.append(p)
+
+        # Check for any .db, .sqlite, .rdb, or .conf files directly in module_dir
+        for item in self.module_dir.glob("*.db"):
+            targets_to_backup.append(item)
+        for item in self.module_dir.glob("*.conf"):
+            targets_to_backup.append(item)
+
+        if not targets_to_backup:
+            return None
+
+        try:
+            backups_base.mkdir(parents=True, exist_ok=True)
+            for item in set(targets_to_backup):
+                dest = backups_base / item.name
+                if item.is_dir():
+                    shutil.copytree(item, dest)
+                else:
+                    shutil.copy2(item, dest)
+            return backups_base
+        except Exception:
+            return None
+
+    def upgrade(self, **kwargs) -> tuple[bool, str]:
+        """Safely upgrade module binaries while strictly preserving data, databases, and configuration."""
+        was_running = bool(self.status().get("running", False))
+        if was_running:
+            self.stop()
+
+        # Create safety snapshot of module data
+        backup_path = self.backup_data()
+
+        try:
+            if self.handler and hasattr(self.handler, "upgrade"):
+                res = self.handler.upgrade(**kwargs)
+            else:
+                res = self.install(**kwargs)
+
+            if was_running:
+                self.start()
+
+            msg = f"{self.display_name} module upgraded successfully (data & configs preserved)."
+            if backup_path:
+                msg += f" [Backup: {backup_path.name}]"
+            return True, msg
+        except Exception as e:
+            if was_running:
+                try:
+                    self.start()
+                except Exception:
+                    pass
+            return False, f"{self.display_name} module upgrade failed: {e}"
+

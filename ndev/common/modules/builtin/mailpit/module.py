@@ -206,8 +206,8 @@ class Module:
         cmd = [
             str(exe),
             "--smtp", "127.0.0.1:1025",
-            "--ui", "127.0.0.1:8025",
-            "--db-file", str(self.db_file),
+            "--listen", "127.0.0.1:8025",
+            "--database", str(self.db_file),
         ]
 
         log_path = self.logs_dir / "mailpit.log"

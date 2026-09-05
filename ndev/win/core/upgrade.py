@@ -55,8 +55,11 @@ def _clean_ver(v: Optional[str]) -> str:
     v = v.strip().lower()
     if v.startswith("v"):
         v = v[1:]
-    # Remove git commit hashes or dates, e.g. "2.10.3 2026-..."
-    return v.split()[0]
+    v = v.split()[0]
+    if "-" in v and not any(pre in v for pre in ["alpha", "beta", "rc", "preview"]):
+        v = v.split("-")[0]
+    return v
+
 
 
 # ── COMPONENT DETECTORS & UPDATERS ──────────────────────────────────────────
@@ -538,22 +541,110 @@ def upgrade_redis() -> tuple[bool, str]:
         return False, f"Redis upgrade failed: {e}"
 
 
+def get_dynamic_module_info(mod) -> ComponentInfo:
+    """Query version information for a dynamic ndev module."""
+    installed = mod.is_installed()
+    curr_ver = mod.version
+    latest_ver = mod.version
+    err = None
+
+    if mod.name == "mailpit":
+        return get_mailpit_info()
+    elif mod.name == "redis":
+        return get_redis_info()
+    elif mod.name == "postgres":
+        if installed:
+            psql = mod.module_dir / "bin" / "psql.exe"
+            if not psql.exists():
+                psql = paths.SHIM_DIR / "psql.exe"
+            if psql.exists():
+                try:
+                    res = subprocess.run([str(psql), "--version"], capture_output=True, text=True, timeout=5)
+                    m = re.search(r"(\d+\.\d+)", res.stdout or res.stderr)
+                    if m:
+                        curr_ver = m.group(1)
+                except Exception as e:
+                    err = str(e)
+        latest_ver = "17.2-1"
+
+    elif mod.name == "mongodb":
+        if installed:
+            mongod = mod.module_dir / "bin" / "mongod.exe"
+            if not mongod.exists():
+                mongod = paths.SHIM_DIR / "mongod.exe"
+            if mongod.exists():
+                try:
+                    res = subprocess.run([str(mongod), "--version"], capture_output=True, text=True, timeout=5)
+                    m = re.search(r"v?(\d+\.\d+\.\d+)", res.stdout or res.stderr)
+                    if m:
+                        curr_ver = m.group(1)
+                except Exception as e:
+                    err = str(e)
+        latest_ver = "7.0.14"
+
+    update_avail = False
+    if curr_ver and latest_ver and _clean_ver(curr_ver) != _clean_ver(latest_ver):
+        update_avail = True
+
+    status = "Up-to-date"
+    if not installed:
+        status = "Not Installed"
+    elif update_avail:
+        status = f"Update Available ({curr_ver} -> {latest_ver})"
+
+    return ComponentInfo(
+        name=mod.name,
+        display_name=f"{mod.display_name} (Module)",
+        current_version=curr_ver,
+        latest_version=latest_ver,
+        update_available=update_avail,
+        installed=installed,
+        status=status,
+        error=err
+    )
+
+
 # ── UNIFIED API ─────────────────────────────────────────────────────────────
 
-COMPONENTS = ["nginx", "mailpit", "mariadb", "pma", "redis", "mkcert", "composer"]
+CORE_COMPONENTS = ["nginx", "mariadb", "pma", "mkcert", "composer"]
+
+
+def get_available_components() -> list[str]:
+    comps = list(CORE_COMPONENTS)
+    try:
+        from ndev.common.modules import get_module_manager
+        for m in get_module_manager().list_modules():
+            if m.name not in comps:
+                comps.append(m.name)
+    except Exception:
+        comps.extend(["mailpit", "redis", "postgres", "mongodb"])
+    return comps
+
+
+# Compatibility alias
+COMPONENTS = ["nginx", "mariadb", "pma", "mailpit", "redis", "postgres", "mongodb", "mkcert", "composer"]
 
 
 def check_all() -> list[ComponentInfo]:
-    """Inspect installed versions and query latest upstream releases for all stack components."""
+    """Inspect installed versions and query latest upstream releases for all stack components and dynamic modules."""
     results = [
         get_nginx_info(),
-        get_mailpit_info(),
         get_mariadb_info(),
         get_pma_info(),
-        get_redis_info(),
         get_mkcert_info(),
         get_composer_info(),
     ]
+
+    # Discover dynamic modules
+    try:
+        from ndev.common.modules import get_module_manager
+        mgr = get_module_manager()
+        for mod in mgr.list_modules():
+            results.append(get_dynamic_module_info(mod))
+    except Exception:
+        results.append(get_mailpit_info())
+        results.append(get_redis_info())
+
     return results
 
 
@@ -561,25 +652,38 @@ def upgrade_component(name: str) -> tuple[bool, str]:
     name = name.lower()
     if name == "nginx":
         return upgrade_nginx()
-    elif name in ["mailpit", "mail"]:
-        return upgrade_mailpit()
     elif name in ["mariadb", "mysql"]:
         return upgrade_mariadb()
     elif name in ["pma", "phpmyadmin"]:
         return upgrade_pma()
-    elif name == "redis":
-        return upgrade_redis()
     elif name == "mkcert":
         return upgrade_mkcert()
     elif name == "composer":
         return upgrade_composer()
-    else:
-        return False, f"Unknown component '{name}'. Available: {', '.join(COMPONENTS)}"
 
+    # Try extensible module manager
+    try:
+        from ndev.common.modules import get_module_manager
+        mgr = get_module_manager()
+        mod = mgr.get_module(name)
+        if mod:
+            return mod.upgrade()
+    except Exception:
+        pass
+
+    # Fallback to direct handlers
+    if name in ["mailpit", "mail"]:
+        return upgrade_mailpit()
+    elif name == "redis":
+        return upgrade_redis()
+
+    return False, f"Unknown component '{name}'. Available: {', '.join(get_available_components())}"
 
 
 def upgrade_all() -> dict[str, tuple[bool, str]]:
     results = {}
-    for comp in COMPONENTS:
-        results[comp] = upgrade_component(comp)
+    for comp in check_all():
+        if comp.installed:
+            results[comp.name] = upgrade_component(comp.name)
     return results
+

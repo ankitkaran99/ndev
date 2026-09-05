@@ -240,10 +240,6 @@ ndev ui
 # Aliases: ndev tui, ndev dashboard
 ```
 
-<p align="center">
-  <img src="ui.png" alt="ndev TUI Dashboard" width="90%">
-</p>
-
 - **Live Status Grid**: Monitor real-time status, PIDs, and active ports for Nginx, MariaDB, Redis, PMA, Mailpit, and PHP worker pools.
 - **One-Click Component Setup & Upgrades**: Install uninstalled services (**Redis**, **PMA**, **Mailpit**, **Nginx**, **MariaDB**, **mkcert**, **Composer**) or upgrade existing components with single-click UI actions.
 - **Interactive Virtual Host Manager**: Create new virtual hosts (`＋ Create VHost`) with automatic local SSL (`mkcert`) and an integrated folder-picker dialog.
