@@ -24,7 +24,6 @@ from textual.widgets import (
     Button,
     Checkbox,
     DataTable,
-    DirectoryTree,
     Footer,
     Header,
     Input,
@@ -62,25 +61,6 @@ ModalScreen {
     background: $surface;
     border: thick $primary;
     padding: 1 2;
-}
-
-.picker-dialog {
-    width: 80;
-    height: 30;
-    max-height: 90%;
-}
-
-#tree-dir-picker {
-    height: 1fr;
-    border: round $primary;
-    margin: 1 0;
-    background: $background;
-}
-
-#lbl-picker-current {
-    color: $accent;
-    text-style: bold;
-    margin-bottom: 0;
 }
 
 .modal-input-row {
@@ -211,62 +191,60 @@ DataTable {
 """
 
 
-class DirectoryPickerModal(ModalScreen[Optional[str]]):
-    """Interactive directory picker modal with Textual DirectoryTree on Linux."""
+def _pick_directory_os(initial_path: Optional[str] = None) -> Optional[str]:
+    """Open native OS folder dialog via tkinter, zenity, or kdialog."""
+    start_dir = Path(initial_path).resolve() if initial_path and Path(initial_path).exists() else Path.cwd()
+    while not start_dir.exists() and start_dir.parent != start_dir:
+        start_dir = start_dir.parent
 
-    def __init__(self, initial_path: Optional[str] = None) -> None:
-        super().__init__()
-        start_path = Path(initial_path).resolve() if initial_path and Path(initial_path).exists() else Path.cwd()
-        while not start_path.exists() and start_path.parent != start_path:
-            start_path = start_path.parent
-        self.start_path = start_path
+    # Try tkinter first
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(
+            title="Select Document Root Directory",
+            initialdir=str(start_dir)
+        )
+        root.destroy()
+        if selected:
+            return str(Path(selected).resolve())
+        elif selected == "":
+            return None
+    except Exception:
+        pass
 
-    def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog", classes="picker-dialog"):
-            yield Label("📁 Select Document Root Directory", id="modal-title")
-            yield Label(f"Current Path: {self.start_path}", id="lbl-picker-current", classes="modal-label")
-            yield DirectoryTree(self.start_path, id="tree-dir-picker")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Select Current Directory", variant="success", id="btn-picker-select")
-                yield Button("Browse OS Dialog (GUI)...", variant="primary", id="btn-picker-tk")
-                yield Button("Cancel", variant="default", id="btn-picker-cancel")
+    # Try zenity (GNOME / GTK)
+    try:
+        import shutil, subprocess
+        if shutil.which("zenity"):
+            res = subprocess.run(
+                ["zenity", "--file-selection", "--directory", f"--filename={start_dir}/", "--title=Select Document Root Directory"],
+                capture_output=True,
+                text=True
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                return str(Path(res.stdout.strip()).resolve())
+    except Exception:
+        pass
 
-    def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
-        selected_path = str(event.path.resolve())
-        self.query_one("#lbl-picker-current", Label).update(f"Current Path: {selected_path}")
+    # Try kdialog (KDE / Qt)
+    try:
+        import shutil, subprocess
+        if shutil.which("kdialog"):
+            res = subprocess.run(
+                ["kdialog", "--getexistingdirectory", str(start_dir), "--title", "Select Document Root Directory"],
+                capture_output=True,
+                text=True
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                return str(Path(res.stdout.strip()).resolve())
+    except Exception:
+        pass
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-picker-select":
-            tree = self.query_one("#tree-dir-picker", DirectoryTree)
-            if tree.cursor_node and tree.cursor_node.data:
-                chosen = str(Path(tree.cursor_node.data.path).resolve())
-            else:
-                chosen = str(self.start_path)
-            self.dismiss(chosen)
-        elif event.button.id == "btn-picker-tk":
-            def _open_tk() -> Optional[str]:
-                try:
-                    import tkinter as tk
-                    from tkinter import filedialog
-                    root = tk.Tk()
-                    root.withdraw()
-                    root.attributes("-topmost", True)
-                    selected = filedialog.askdirectory(
-                        title="Select Document Root Directory",
-                        initialdir=str(self.start_path)
-                    )
-                    root.destroy()
-                    return str(Path(selected).resolve()) if selected else None
-                except Exception:
-                    return None
-
-            selected = _open_tk()
-            if selected:
-                self.dismiss(selected)
-            else:
-                self.notify("No folder selected from OS dialog.", severity="information")
-        else:
-            self.dismiss(None)
+    return None
 
 
 class CreateVhostModal(ModalScreen[Optional[dict]]):
@@ -299,12 +277,9 @@ class CreateVhostModal(ModalScreen[Optional[dict]]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-vhost-browse":
             current_val = self.query_one("#input-vhost-root", Input).value.strip()
-
-            def _on_dir_chosen(chosen: Optional[str]) -> None:
-                if chosen:
-                    self.query_one("#input-vhost-root", Input).value = chosen
-
-            self.app.push_screen(DirectoryPickerModal(current_val), _on_dir_chosen)
+            chosen = _pick_directory_os(current_val)
+            if chosen:
+                self.query_one("#input-vhost-root", Input).value = chosen
         elif event.button.id == "btn-modal-create":
             domain = self.query_one("#input-vhost-domain", Input).value.strip()
             root = self.query_one("#input-vhost-root", Input).value.strip()
