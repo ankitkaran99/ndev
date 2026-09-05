@@ -216,6 +216,7 @@ ndev ui
 | `ndev ext` | Manage PECL extensions (`list`, `install`, `enable`, `disable`) |
 | `ndev grok` | Public HTTP tunneling for local virtual hosts via ngrok |
 | `ndev postgres` | Manage PostgreSQL server (`install`, `start`, `stop`, `restart`, `status`) |
+| `ndev mongodb` | Manage MongoDB server (`install`, `start`, `stop`, `restart`, `status`) |
 | `ndev module list` | List all dynamic modules and status in `<userdir>/.ndev/modules/` |
 | `ndev module <action>`| Manage dynamic module lifecycle (`install`, `start`, `stop`, `restart`, `status`, `open`) |
 | `ndev module create` | Scaffold a new dynamic module with manifest and template code |
@@ -485,7 +486,7 @@ ndev clean
 
 ### 10. Extensible Dynamic Modules (`ndev module`)
 
-`ndev` features a modular architecture where core services (`nginx`, `mariadb`, `php`, `phpmyadmin`, `ngrok`) are augmented with dynamic modules (`mailpit`, `redis`, `postgres`, and custom community modules) located in `<userdir>/.ndev/modules/<module_name>/`.
+`ndev` features a modular architecture where core services (`nginx`, `mariadb`, `php`, `phpmyadmin`, `ngrok`) are augmented with dynamic modules (`mailpit`, `redis`, `postgres`, `mongodb`, and custom community modules) located in `<userdir>/.ndev/modules/<module_name>/`.
 
 #### Module Commands:
 ```bash
@@ -496,6 +497,7 @@ ndev module list
 ndev module install mailpit
 ndev module start redis
 ndev module status postgres
+ndev module status mongodb
 ndev module open mailpit     # Opens web UI if available
 ndev module restart redis
 ndev module stop redis
@@ -505,6 +507,8 @@ ndev start mailpit
 ndev stop redis
 ndev postgres start
 ndev postgres status
+ndev mongodb start
+ndev mongodb status
 
 # Scaffold a new custom module
 ndev module create my-service --display-name "My Custom Service" --category queue --port 9000

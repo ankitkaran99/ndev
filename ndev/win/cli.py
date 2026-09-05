@@ -2309,5 +2309,69 @@ def postgres_status_cmd():
     console.print(f"PostgreSQL: {'[bold green]RUNNING[/bold green]' if st.get('running') else '[bold red]STOPPED[/bold red]'} ({st.get('details', '')})")
 
 
+@main.group(name="mongodb")
+def mongodb_cmd():
+    """Manage MongoDB database server module."""
+    pass
+
+
+@mongodb_cmd.command(name="install")
+def mongodb_install_cmd():
+    """Install MongoDB portable binaries and mongosh."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("mongodb")
+    if not mod:
+        raise click.ClickException("MongoDB module not found.")
+    with console.status("[bold green]Installing MongoDB...[/bold green]"):
+        mod.install()
+    console.print("[bold green]✓ MongoDB installed successfully.[/bold green]")
+
+
+@mongodb_cmd.command(name="start")
+def mongodb_start_cmd():
+    """Start MongoDB database server (port 27017)."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("mongodb")
+    if not mod:
+        raise click.ClickException("MongoDB module not found.")
+    mod.start()
+    st = mod.status()
+    console.print(f"[bold green]✓ MongoDB started ({st.get('details', 'Port 27017')}).[/bold green]")
+
+
+@mongodb_cmd.command(name="stop")
+def mongodb_stop_cmd():
+    """Stop MongoDB database server."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("mongodb")
+    if not mod:
+        raise click.ClickException("MongoDB module not found.")
+    mod.stop()
+    console.print("[bold green]✓ MongoDB stopped.[/bold green]")
+
+
+@mongodb_cmd.command(name="restart")
+def mongodb_restart_cmd():
+    """Restart MongoDB database server."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("mongodb")
+    if not mod:
+        raise click.ClickException("MongoDB module not found.")
+    mod.restart()
+    console.print("[bold green]✓ MongoDB restarted.[/bold green]")
+
+
+@mongodb_cmd.command(name="status")
+def mongodb_status_cmd():
+    """Check MongoDB server status."""
+    from ndev.common.modules import get_module_manager
+    mod = get_module_manager().get_module("mongodb")
+    if not mod:
+        raise click.ClickException("MongoDB module not found.")
+    st = mod.status()
+    console.print(f"MongoDB: {'[bold green]RUNNING[/bold green]' if st.get('running') else '[bold red]STOPPED[/bold red]'} ({st.get('details', '')})")
+
+
 if __name__ == "__main__":
     sys.exit(main())
+

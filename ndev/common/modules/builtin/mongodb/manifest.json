@@ -1,0 +1,19 @@
+{
+  "name": "mongodb",
+  "display_name": "MongoDB",
+  "version": "7.0.14",
+  "description": "General purpose, document-based distributed NoSQL database",
+  "category": "database",
+  "author": "MongoDB (packaged by ndev)",
+  "homepage": "https://www.mongodb.com",
+  "ports": {
+    "mongodb": 27017
+  },
+  "web_ui": null,
+  "platforms": [
+    "windows",
+    "linux",
+    "darwin"
+  ],
+  "entrypoint": "module.py"
+}
