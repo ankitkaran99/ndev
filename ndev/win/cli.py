@@ -33,6 +33,7 @@ from .core import (
     redis_core,
     services,
     setup as setup_core,
+    shim,
     upgrade as upgrade_core,
     vhost as vhost_core,
 )
@@ -375,8 +376,8 @@ def doctor():
         table.add_row("ngrok Tunneling", "[yellow]MISSING[/yellow]", "Run `ndev setup` to install")
 
     # Composer
-    composer_bat = paths.SHIM_DIR / "composer.bat"
-    if composer_bat.exists() or shutil.which("composer"):
+    composer_cmd = paths.SHIM_DIR / "composer.exe"
+    if composer_cmd.exists() or shutil.which("composer"):
         table.add_row("Composer", "[green]OK[/green]", "Installed and available on CLI")
     else:
         table.add_row("Composer", "[yellow]MISSING[/yellow]", "Run `ndev setup` to install")
@@ -390,7 +391,7 @@ def doctor():
     # PATH Check
     shim_on_path = str(paths.SHIM_DIR).lower() in os.environ.get("PATH", "").lower()
     path_status = "[green]OK[/green]" if shim_on_path else "[yellow]WARNING[/yellow]"
-    path_detail = f"Found on PATH ({paths.SHIM_DIR})" if shim_on_path else f"Add {paths.SHIM_DIR} to your system PATH"
+    path_detail = f"Found on PATH ({paths.SHIM_DIR})" if shim_on_path else f"Run `ndev shim init` or add {paths.SHIM_DIR} to PATH"
     table.add_row("Shims on PATH", path_status, path_detail)
 
     console.print(table)
@@ -1994,9 +1995,10 @@ def setup(nginx, mariadb, mkcert, ngrok, composer, cacert, nginx_version, mariad
     for name, path in results.items():
         console.print(f"[bold green]✓[/bold green] Installed {name:<10} -> {path}")
 
+    shim.ensure_on_path()
     shim_on_path = str(paths.SHIM_DIR).lower() in os.environ.get("PATH", "").lower()
     if not shim_on_path:
-        console.print(f"\n[bold yellow]Important:[/bold yellow] Add [bold cyan]{paths.SHIM_DIR}[/bold cyan] to your system PATH.")
+        console.print(f"\n[bold green]✓[/bold green] Added [bold cyan]{paths.SHIM_DIR}[/bold cyan] to User PATH (open a new terminal to use shims).")
 
 
 # ---- Component Upgrade (upgrade) --------------------------------------------
@@ -2370,6 +2372,78 @@ def mongodb_status_cmd():
         raise click.ClickException("MongoDB module not found.")
     st = mod.status()
     console.print(f"MongoDB: {'[bold green]RUNNING[/bold green]' if st.get('running') else '[bold red]STOPPED[/bold red]'} ({st.get('details', '')})")
+
+
+# ---- Shim Management (shim / shims) -----------------------------------------
+
+@main.group(name="shim")
+def shim_cmd():
+    """Manage Windows executable shims and PATH registration."""
+    pass
+
+
+@shim_cmd.command(name="list")
+def shim_list_cmd():
+    """List all configured shims."""
+    shims = shim.list_shims()
+    if not shims:
+        console.print("[yellow]No shims configured in ~/.ndev/shims.[/yellow]")
+        return
+
+    table = Table(title="ndev Windows Shims")
+    table.add_column("Command", style="bold cyan")
+    table.add_column("Target Executable / Details", style="green")
+    for name, target in shims.items():
+        table.add_row(name, target)
+    console.print(table)
+
+
+@shim_cmd.command(name="init")
+def shim_init_cmd():
+    """Ensure ~/.ndev/shims is added to the user PATH environment variable."""
+    updated = shim.ensure_on_path()
+    if updated:
+        console.print(f"[bold green]✓ Added {paths.SHIM_DIR} to User PATH registry.[/bold green]")
+        console.print("[dim]A WM_SETTINGCHANGE broadcast was sent. Open a new terminal to use shims.[/dim]")
+    else:
+        console.print(f"[green]✓ {paths.SHIM_DIR} is already present in your User PATH registry.[/green]")
+
+
+@shim_cmd.command(name="add")
+@click.argument("name")
+@click.argument("target")
+@click.option("--args", default="", help="Default arguments to pass to target executable")
+@click.option("--cwd", default=None, help="Working directory for execution")
+@click.option("--prepend", default=None, help="Directory to prepend to PATH for target")
+def shim_add_cmd(name, target, args, cwd, prepend):
+    """Create or update a custom native Windows .exe shim."""
+    try:
+        created = shim.create(name, target, args=args, cwd=cwd, path_prepend=prepend)
+        console.print(f"[bold green]✓ Created shim '{name}' -> {created}[/bold green]")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@shim_cmd.command(name="rm")
+@click.argument("name")
+def shim_rm_cmd(name):
+    """Remove a shim."""
+    if shim.remove(name):
+        console.print(f"[bold green]✓ Removed shim '{name}'.[/bold green]")
+    else:
+        console.print(f"[yellow]No shim named '{name}' found.[/yellow]")
+
+
+@main.group(name="shims", hidden=True)
+def shims_alias():
+    """Alias for shim."""
+    pass
+
+
+shims_alias.add_command(shim_list_cmd, "list")
+shims_alias.add_command(shim_init_cmd, "init")
+shims_alias.add_command(shim_add_cmd, "add")
+shims_alias.add_command(shim_rm_cmd, "rm")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ from typing import Optional
 
 import httpx
 
-from . import paths
+from . import paths, shim
 
 # ---- Defaults ---------------------------------------------------------------
 
@@ -170,16 +170,13 @@ def install_mariadb(version: str = DEFAULT_MARIADB_VERSION) -> Path:
 
 def _create_mariadb_shims() -> None:
     paths.ensure_dirs()
-    mysql_exe = paths.MARIADB_DIR / "bin" / "mysql.exe"
-    mysqldump_exe = paths.MARIADB_DIR / "bin" / "mysqldump.exe"
+    bin_dir = paths.MARIADB_DIR / "bin"
+    mysql_exe = bin_dir / "mysql.exe"
+    mysqldump_exe = bin_dir / "mysqldump.exe"
     if mysql_exe.exists():
-        (paths.SHIM_DIR / "mysql.bat").write_text(f'@echo off\r\n"{mysql_exe}" %*\r\n', encoding="utf-8")
-        (paths.SHIM_DIR / "mysql.cmd").write_text(f'@echo off\r\n"{mysql_exe}" %*\r\n', encoding="utf-8")
-        (paths.SHIM_DIR / "mysql.ps1").write_text(f'& "{mysql_exe}" @args\r\n', encoding="utf-8")
+        shim.create("mysql", str(mysql_exe), path_prepend=str(bin_dir), clean_legacy=True)
     if mysqldump_exe.exists():
-        (paths.SHIM_DIR / "mysqldump.bat").write_text(f'@echo off\r\n"{mysqldump_exe}" %*\r\n', encoding="utf-8")
-        (paths.SHIM_DIR / "mysqldump.cmd").write_text(f'@echo off\r\n"{mysqldump_exe}" %*\r\n', encoding="utf-8")
-        (paths.SHIM_DIR / "mysqldump.ps1").write_text(f'& "{mysqldump_exe}" @args\r\n', encoding="utf-8")
+        shim.create("mysqldump", str(mysqldump_exe), path_prepend=str(bin_dir), clean_legacy=True)
 
 
 def _init_mariadb_data_dir() -> None:
@@ -280,14 +277,28 @@ def install_ngrok() -> Path:
 # ---- Composer -----------------------------------------------------------------
 
 def install_composer() -> Path:
-    """Download composer.phar and generate composer.bat, composer.cmd, and composer.ps1 shims."""
+    """Download composer.phar and generate native composer.exe shim."""
     phar_dest = paths.SHIM_DIR / "composer.phar"
     _download(COMPOSER_PHAR_URL, phar_dest)
     
     clean_phar = str(phar_dest.resolve()).replace("\\", "/")
-    (paths.SHIM_DIR / "composer.bat").write_text(f'@echo off\r\nphp "{clean_phar}" %*\r\n', encoding="utf-8")
-    (paths.SHIM_DIR / "composer.cmd").write_text(f'@echo off\r\nphp "{clean_phar}" %*\r\n', encoding="utf-8")
-    (paths.SHIM_DIR / "composer.ps1").write_text(f'& php "{clean_phar}" @args\r\n', encoding="utf-8")
+    # If active PHP is installed, point composer shim directly to it
+    from . import php
+    curr_ver = php.get_current_version()
+    if curr_ver:
+        try:
+            exe_path = str(paths.version_dir(curr_ver) / "php.exe")
+            shim.create(
+                "composer",
+                exe_path,
+                args=f'"{clean_phar}"',
+                path_prepend=str(paths.version_dir(curr_ver)),
+                clean_legacy=True,
+            )
+            return phar_dest
+        except Exception:
+            pass
+
     return phar_dest
 
 
@@ -306,25 +317,14 @@ def install_cacert() -> Path:
 
 
 def create_ndev_shims() -> Path:
-    """Create ndev.bat, ndev.cmd, and ndev.ps1 in ~/.ndev/shims/ pointing to active python/ndev."""
+    """Create ndev native executable shim in ~/.ndev/shims/ pointing to active python/ndev."""
     import sys
     paths.ensure_dirs()
     scripts_dir = Path(sys.executable).parent
     ndev_exe = scripts_dir / "ndev.exe"
     if ndev_exe.exists():
-        bat_target = f'"{ndev_exe}" %*'
-        ps_target = f'& "{ndev_exe}" @args'
-    else:
-        bat_target = f'"{sys.executable}" -m ndev_win.cli %*'
-        ps_target = f'& "{sys.executable}" -m ndev_win.cli @args'
-
-    bat_path = paths.SHIM_DIR / "ndev.bat"
-    cmd_path = paths.SHIM_DIR / "ndev.cmd"
-    ps_path = paths.SHIM_DIR / "ndev.ps1"
-    bat_path.write_text(f'@echo off\r\n{bat_target}\r\n', encoding="utf-8")
-    cmd_path.write_text(f'@echo off\r\n{bat_target}\r\n', encoding="utf-8")
-    ps_path.write_text(f'{ps_target}\r\n', encoding="utf-8")
-    return bat_path
+        return shim.create("ndev", str(ndev_exe), clean_legacy=True)
+    return shim.create("ndev", sys.executable, args="-m ndev.main", clean_legacy=True)
 
 
 # ---- Orchestration ----------------------------------------------------------

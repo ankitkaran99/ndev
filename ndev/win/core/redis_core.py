@@ -16,7 +16,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import fcgi, paths, setup as setup_core
+from . import fcgi, paths, setup as setup_core, shim
 
 DEFAULT_PORT = 6379
 DEFAULT_VERSION = "8.10.1"
@@ -103,12 +103,15 @@ def install(version: str = DEFAULT_VERSION) -> Path:
         )
 
     # Place redis-cli shim in ~/.ndev/shims/
-    if (REDIS_DIR / "redis-cli.exe").exists():
-        shim_cli = paths.SHIM_DIR / "redis-cli.exe"
+    cli_file = REDIS_DIR / "redis-cli.exe"
+    if cli_file.exists():
         try:
-            shutil.copy2(REDIS_DIR / "redis-cli.exe", shim_cli)
+            shim.create("redis-cli", str(cli_file), path_prepend=str(REDIS_DIR))
         except Exception:
-            pass
+            try:
+                shutil.copy2(cli_file, paths.SHIM_DIR / "redis-cli.exe")
+            except Exception:
+                pass
 
     return REDIS_DIR
 

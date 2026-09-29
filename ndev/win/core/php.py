@@ -15,7 +15,7 @@ from pathlib import Path
 
 import httpx
 
-from . import paths
+from . import paths, shim
 
 RELEASES_INDEX_URL = "https://windows.php.net/downloads/releases/releases.json"
 ARCHIVES_INDEX_URL = "https://windows.php.net/downloads/releases/archives/"
@@ -498,12 +498,9 @@ def uninstall(version: str) -> None:
             if paths.CURRENT_FILE.exists():
                 paths.CURRENT_FILE.unlink(missing_ok=True)
             # Remove all PHP and Composer shims
-            for shim in [
-                "php.bat", "php.cmd", "php.ps1",
-                "php-cgi.bat", "php-cgi.cmd", "php-cgi.ps1",
-                "composer.bat", "composer.cmd", "composer.ps1",
-            ]:
-                (paths.SHIM_DIR / shim).unlink(missing_ok=True)
+            shim.remove("php")
+            shim.remove("php-cgi")
+            shim.remove("composer")
 
 
 def list_installed() -> list[str]:
@@ -570,37 +567,30 @@ def get_current_version() -> str | None:
 def use(version: str) -> str:
     """
     Point ndev shims (on PATH) at this version's php.exe and php-cgi.exe.
-    Generates php.bat, php.cmd, php-cgi.bat, and composer.bat in ~/.ndev/shims.
+    Generates binary .exe shims with .cmd fallback in ~/.ndev/shims.
     Returns the resolved version string.
     """
     resolved_ver = resolve_installed(version)
     paths.ensure_dirs()
     
-    exe_path = str(paths.version_dir(resolved_ver) / "php.exe")
-    cgi_path = str(paths.version_dir(resolved_ver) / "php-cgi.exe")
+    php_dir = paths.version_dir(resolved_ver)
+    exe_path = str(php_dir / "php.exe")
+    cgi_path = str(php_dir / "php-cgi.exe")
 
-    # php.bat, php.cmd, php.ps1
-    (paths.SHIM_DIR / "php.bat").write_text(f'@echo off\r\n"{exe_path}" %*\r\n', encoding="utf-8")
-    (paths.SHIM_DIR / "php.cmd").write_text(f'@echo off\r\n"{exe_path}" %*\r\n', encoding="utf-8")
-    (paths.SHIM_DIR / "php.ps1").write_text(f'& "{exe_path}" @args\r\n', encoding="utf-8")
+    # Create native shims via shimgen with path_prepend for PHP DLLs (cleans any legacy scripts)
+    shim.create("php", exe_path, path_prepend=str(php_dir), clean_legacy=True)
+    shim.create("php-cgi", cgi_path, path_prepend=str(php_dir), clean_legacy=True)
 
-    # php-cgi.bat, php-cgi.cmd, php-cgi.ps1
-    (paths.SHIM_DIR / "php-cgi.bat").write_text(f'@echo off\r\n"{cgi_path}" %*\r\n', encoding="utf-8")
-    (paths.SHIM_DIR / "php-cgi.cmd").write_text(f'@echo off\r\n"{cgi_path}" %*\r\n', encoding="utf-8")
-    (paths.SHIM_DIR / "php-cgi.ps1").write_text(f'& "{cgi_path}" @args\r\n', encoding="utf-8")
-
-    # If composer.phar is present, create/update composer shims
+    # If composer.phar is present, create/update composer native shim
     composer_phar = paths.SHIM_DIR / "composer.phar"
     if composer_phar.exists():
         clean_phar = str(composer_phar.resolve()).replace("\\", "/")
-        (paths.SHIM_DIR / "composer.bat").write_text(
-            f'@echo off\r\n"{exe_path}" "{clean_phar}" %*\r\n', encoding="utf-8"
-        )
-        (paths.SHIM_DIR / "composer.cmd").write_text(
-            f'@echo off\r\n"{exe_path}" "{clean_phar}" %*\r\n', encoding="utf-8"
-        )
-        (paths.SHIM_DIR / "composer.ps1").write_text(
-            f'& "{exe_path}" "{clean_phar}" @args\r\n', encoding="utf-8"
+        shim.create(
+            "composer",
+            exe_path,
+            args=f'"{clean_phar}"',
+            path_prepend=str(php_dir),
+            clean_legacy=True,
         )
 
     paths.set_current_version(resolved_ver)

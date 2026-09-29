@@ -433,14 +433,15 @@ def get_composer_info() -> ComponentInfo:
 
     if installed:
         try:
-            bat = paths.SHIM_DIR / "composer.bat"
-            res = subprocess.run([str(bat), "--version", "--no-ansi"], capture_output=True, text=True, timeout=10)
-            raw = (res.stdout or "") + "\n" + (res.stderr or "")
-            # Strip ANSI escape sequences if any exist
-            clean_text = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", raw)
-            m = re.search(r"Composer\s+(?:version\s+)?(\d+\.\d+\.\d+)", clean_text, re.IGNORECASE)
-            if m:
-                curr_ver = m.group(1)
+            comp_cmd = paths.SHIM_DIR / "composer.exe"
+            if comp_cmd.exists():
+                res = subprocess.run([str(comp_cmd), "--version", "--no-ansi"], capture_output=True, text=True, timeout=10)
+                raw = (res.stdout or "") + "\n" + (res.stderr or "")
+                # Strip ANSI escape sequences if any exist
+                clean_text = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", raw)
+                m = re.search(r"Composer\s+(?:version\s+)?(\d+\.\d+\.\d+)", clean_text, re.IGNORECASE)
+                if m:
+                    curr_ver = m.group(1)
         except Exception as e:
             err = str(e)
 
@@ -469,9 +470,9 @@ def get_composer_info() -> ComponentInfo:
 
 def upgrade_composer() -> tuple[bool, str]:
     try:
-        bat = paths.SHIM_DIR / "composer.bat"
-        if bat.exists():
-            res = subprocess.run([str(bat), "self-update"], capture_output=True, text=True, timeout=60)
+        comp_cmd = paths.SHIM_DIR / "composer.exe"
+        if comp_cmd.exists():
+            res = subprocess.run([str(comp_cmd), "self-update"], capture_output=True, text=True, timeout=60)
             if res.returncode == 0:
                 info = get_composer_info()
                 return True, f"Composer upgraded successfully ({info.current_version})."

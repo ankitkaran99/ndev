@@ -119,16 +119,21 @@ class Module:
             except Exception:
                 pass
 
-            # Copy tools to ~/.ndev/shims/
+            # Create tool shims in ~/.ndev/shims/
             shim_dir = self.module_dir.parent.parent / "shims"
             if shim_dir.exists():
                 for tool in ["mongod.exe", "mongos.exe", "mongosh.exe"]:
                     src_tool = self.bin_dir / tool
                     if src_tool.exists():
+                        name = tool[:-4] if tool.lower().endswith(".exe") else tool
                         try:
-                            shutil.copy2(src_tool, shim_dir / tool)
+                            from ndev.win.core import shim as win_shim
+                            win_shim.create(name, str(src_tool), path_prepend=str(self.bin_dir), shim_dir=shim_dir)
                         except Exception:
-                            pass
+                            try:
+                                shutil.copy2(src_tool, shim_dir / tool)
+                            except Exception:
+                                pass
         else:
             # Linux: try installing via system package manager or apt
             if not shutil.which("mongod"):

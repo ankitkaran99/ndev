@@ -108,16 +108,21 @@ class Module:
                 except Exception:
                     pass
 
-            # Copy key cli binaries to ~/.ndev/shims/
+            # Create key cli binary shims in ~/.ndev/shims/
             shim_dir = self.module_dir.parent.parent / "shims"
             if shim_dir.exists():
                 for tool in ["psql.exe", "pg_ctl.exe", "pg_dump.exe", "createdb.exe", "dropdb.exe"]:
                     src_tool = self.bin_dir / tool
                     if src_tool.exists():
+                        name = tool[:-4] if tool.lower().endswith(".exe") else tool
                         try:
-                            shutil.copy2(src_tool, shim_dir / tool)
+                            from ndev.win.core import shim as win_shim
+                            win_shim.create(name, str(src_tool), path_prepend=str(self.bin_dir), shim_dir=shim_dir)
                         except Exception:
-                            pass
+                            try:
+                                shutil.copy2(src_tool, shim_dir / tool)
+                            except Exception:
+                                pass
         else:
             # Linux: try installing via system package manager
             if not shutil.which("pg_ctl"):

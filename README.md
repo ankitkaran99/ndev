@@ -223,6 +223,7 @@ ndev ui
 | `ndev upgrade` | Check for and upgrade stack components (Nginx, MariaDB, Redis, PMA, Mailpit, mkcert, Composer) |
 | `ndev upgrade --check` | Check component versions against upstream releases without upgrading |
 | `ndev shell` | Interactive developer subshell pre-loaded with PHP/Composer/MySQL/Redis on PATH |
+| `ndev shim` | Manage Windows binary shims and PATH registration (`list`, `init`, `add`, `rm`) |
 | `ndev doctor` | Run environment diagnostics and health checks |
 | `ndev logs` | View and tail service and virtual host logs |
 | `ndev clean` | Clean up downloads cache and stale runtime state |
