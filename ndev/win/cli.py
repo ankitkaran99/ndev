@@ -1877,7 +1877,7 @@ def redis_cli(port: int):
 
 @main.command(name="grok")
 @click.option("--domain", default=None, help="Vhost domain to tunnel. Omit to select interactively.")
-@click.option("--ssl", is_flag=True, help="Tunnel HTTPS port 443")
+@click.option("--ssl/--no-ssl", default=None, help="Tunnel HTTPS port 443 (defaults to auto-detecting vhost SSL)")
 def grok(domain, ssl):
     """Tunnel a local virtual host to the public web via ngrok."""
     if not domain:
@@ -1897,12 +1897,19 @@ def grok(domain, ssl):
             raise click.ClickException("Invalid selection.")
 
     domain = re.sub(r"^https?://", "", domain.strip().lower()).rstrip("/")
-    console.print(f"Starting ngrok tunnel for [bold cyan]{domain}[/bold cyan]{' (HTTPS)' if ssl else ''} -- Ctrl+C to stop.")
-    proc = grok_core.start_tunnel(domain, ssl=ssl)
+    v_meta = vhost_core.get_vhost(domain)
+    is_ssl = ssl if ssl is not None else bool(v_meta and v_meta.get("ssl"))
+    console.print(f"Starting ngrok tunnel for [bold cyan]{domain}[/bold cyan]{' (HTTPS)' if is_ssl else ''} -- Ctrl+C to stop.")
+    proc, policy_file = grok_core.start_tunnel(domain, ssl=ssl)
     try:
         proc.wait()
     except KeyboardInterrupt:
         proc.terminate()
+    finally:
+        try:
+            policy_file.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 @main.command(name="tunnel", hidden=True)

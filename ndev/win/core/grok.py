@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from . import paths, vhost
@@ -38,17 +39,57 @@ def _ngrok_exe() -> str:
     raise FileNotFoundError("ngrok isn't installed -- run `ndev setup` first")
 
 
-def start_tunnel(domain: str, ssl: bool = False) -> subprocess.Popen:
+def start_tunnel(domain: str, ssl: bool | None = None) -> tuple[subprocess.Popen, Path]:
     """
-    Start `ngrok http` against Nginx, rewriting Host header to `domain`.
+    Start `ngrok http` against Nginx.
+    Rewrites the request Host header to `domain` and rewrites any response
+    redirect Location headers from the local domain back to the ngrok public URL.
+    Returns (Popen, policy_file_path).
     """
     import re
     clean_domain = re.sub(r"^https?://", "", domain.strip().lower()).rstrip("/")
+    vhost_meta = vhost.get_vhost(clean_domain)
     known = list_vhosts()
-    if clean_domain not in known:
+    if not vhost_meta and clean_domain not in known:
         raise FileNotFoundError(
             f"No vhost found for '{clean_domain}'. Known vhosts: {known or '(none)'}"
         )
-    target = f"https://localhost:{HTTPS_PORT}" if ssl else str(HTTP_PORT)
-    cmd = [_ngrok_exe(), "http", target, f"--host-header={clean_domain}"]
-    return subprocess.Popen(cmd)
+
+    # Determine SSL mode: use explicit flag if provided, otherwise auto-detect from vhost config
+    is_ssl = ssl if ssl is not None else bool(vhost_meta and vhost_meta.get("ssl"))
+
+    target = f"https://localhost:{HTTPS_PORT}" if is_ssl else str(HTTP_PORT)
+
+    # Build traffic policy YAML to ensure:
+    # 1. Request Host header is rewritten to clean_domain so Nginx routes to the right vhost.
+    # 2. Response Location header rewriting prevents external devices from being redirected
+    #    to the unresolvable local domain (e.g. *.local).
+    policy_content = f'''on_http_request:
+  - actions:
+      - type: add-headers
+        config:
+          headers:
+            Host: "{clean_domain}"
+
+on_http_response:
+  - expressions:
+      - 'res.status_code >= 300 && res.status_code < 400 && "location" in res.headers'
+      - 'res.headers["location"][0].contains("://{clean_domain}")'
+    actions:
+      - type: add-headers
+        config:
+          headers:
+            Location: '${{res.headers["location"][0].replace("https://{clean_domain}", conn.server_name.size() > 0 ? "https://" + conn.server_name : "").replace("http://{clean_domain}", conn.server_name.size() > 0 ? "https://" + conn.server_name : "")}}'
+'''
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as tmp:
+        tmp.write(policy_content)
+        policy_file = Path(tmp.name)
+
+    cmd = [_ngrok_exe(), "http", target, "--traffic-policy-file", str(policy_file)]
+    if is_ssl:
+        cmd.append("--upstream-tls-verify=false")
+
+    proc = subprocess.Popen(cmd)
+    return proc, policy_file
+

@@ -209,8 +209,12 @@ def nginx_upstream_name(version: str, domain: str | None = None) -> str:
 
 def render_upstream_block(version: str, domain: str | None = None) -> str:
     workers = status(version)
-    if not workers:
-        raise RuntimeError(f"PHP {version} pool is not running; start it first")
-    servers = "\n".join(f"    server 127.0.0.1:{w.port};" for w in workers)
+    if workers:
+        servers = "\n".join(f"    server 127.0.0.1:{w.port};" for w in workers)
+    else:
+        cfg = paths.load_config()
+        ports = ports_for(version, cfg["fcgi_workers_per_version"], cfg["fcgi_base_port"])
+        servers = "\n".join(f"    server 127.0.0.1:{p};" for p in ports)
     u_name = nginx_upstream_name(version, domain=domain)
     return f"upstream {u_name} {{\n{servers}\n}}\n"
+

@@ -286,3 +286,12 @@ def list_vhosts() -> list[dict]:
             "conf": str(p),
         })
     return vhosts
+
+
+def get_vhost(domain: str) -> dict | None:
+    """Get virtual host metadata for a specific domain name."""
+    clean_domain = re.sub(r"^https?://", "", domain.strip().lower()).rstrip("/")
+    for v in list_vhosts():
+        if v["domain"].lower() == clean_domain:
+            return v
+    return None
