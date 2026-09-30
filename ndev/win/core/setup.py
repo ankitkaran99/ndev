@@ -113,7 +113,7 @@ def install_nginx(version: str = DEFAULT_NGINX_VERSION) -> Path:
 
 
 def _include_vhosts_in_main_conf() -> None:
-    """Add `include ndev-vhosts/*.conf;` inside the http{} block in nginx.conf."""
+    """Ensure vhost includes, proxy mapping maps, and fastcgi_params are configured."""
     # Ensure default fallback vhost exists so Nginx never fails wildcard glob
     default_conf = paths.NGINX_CONF_D / "_default.conf"
     if not default_conf.exists():
@@ -127,27 +127,61 @@ def _include_vhosts_in_main_conf() -> None:
         )
 
     conf = paths.NGINX_DIR / "conf" / "nginx.conf"
-    if not conf.exists():
-        return
-    text = conf.read_text(encoding="utf-8", errors="ignore")
-    include_line = "    include ndev-vhosts/*.conf;\n"
-    if "ndev-vhosts" in text:
-        return
+    if conf.exists():
+        text = conf.read_text(encoding="utf-8", errors="ignore")
+        changed = False
 
-    http_start = text.find("http {")
-    if http_start == -1:
-        return
-    brace_depth = 0
-    i = text.find("{", http_start)
-    for idx in range(i, len(text)):
-        if text[idx] == "{":
-            brace_depth += 1
-        elif text[idx] == "}":
-            brace_depth -= 1
-            if brace_depth == 0:
-                text = text[:idx] + include_line + text[idx:]
-                break
-    conf.write_text(text, encoding="utf-8")
+        # Add forwarded header map directives if not already present
+        if "$fcgi_host" not in text:
+            map_block = (
+                "\n    # Map forwarded headers from reverse proxies (e.g. ngrok) to FastCGI params\n"
+                "    map $http_x_forwarded_host $fcgi_host {\n"
+                "        default $http_x_forwarded_host;\n"
+                '        ""      $host;\n'
+                "    }\n\n"
+                "    map $http_x_forwarded_proto $fcgi_scheme {\n"
+                "        default $http_x_forwarded_proto;\n"
+                '        ""      $scheme;\n'
+                "    }\n\n"
+                "    map $http_x_forwarded_proto $fcgi_https {\n"
+                '        default "on";\n'
+                '        ""      $https;\n'
+                "    }\n\n"
+            )
+            http_start = text.find("http {")
+            if http_start != -1:
+                brace_pos = text.find("{", http_start)
+                text = text[:brace_pos + 1] + map_block + text[brace_pos + 1:]
+                changed = True
+
+        if "ndev-vhosts" not in text:
+            include_line = "    include ndev-vhosts/*.conf;\n"
+            http_start = text.find("http {")
+            if http_start != -1:
+                brace_depth = 0
+                i = text.find("{", http_start)
+                for idx in range(i, len(text)):
+                    if text[idx] == "{":
+                        brace_depth += 1
+                    elif text[idx] == "}":
+                        brace_depth -= 1
+                        if brace_depth == 0:
+                            text = text[:idx] + include_line + text[idx:]
+                            changed = True
+                            break
+
+        if changed:
+            conf.write_text(text, encoding="utf-8")
+
+    # Update fastcgi_params to forward $fcgi_host and $fcgi_scheme
+    fcgi_params_path = paths.NGINX_DIR / "conf" / "fastcgi_params"
+    if fcgi_params_path.exists():
+        fcgi_text = fcgi_params_path.read_text(encoding="utf-8", errors="ignore")
+        if "HTTP_HOST" not in fcgi_text or "$fcgi_host" not in fcgi_text:
+            fcgi_text = fcgi_text.replace("fastcgi_param  REQUEST_SCHEME     $scheme;", "fastcgi_param  REQUEST_SCHEME     $fcgi_scheme;")
+            fcgi_text = fcgi_text.replace("fastcgi_param  HTTPS              $https if_not_empty;", "fastcgi_param  HTTPS              $fcgi_https if_not_empty;")
+            fcgi_text = fcgi_text.replace("fastcgi_param  SERVER_NAME        $server_name;", "fastcgi_param  SERVER_NAME        $fcgi_host;\nfastcgi_param  HTTP_HOST          $fcgi_host;")
+            fcgi_params_path.write_text(fcgi_text, encoding="utf-8")
 
 
 # ---- MariaDB ------------------------------------------------------------------
